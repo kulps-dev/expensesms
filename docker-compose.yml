@@ -3,25 +3,31 @@ version: '3.8'
 services:
   app:
     build: .
-    container_name: moysklad_app
     restart: always
     environment:
       - FLASK_ENV=production
+      # Установите секрет (обязательно в реальном окружении)
+      # - APP_SECRET=your_real_secret_here
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5000/expensesms/health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
     networks:
       - app-network
 
   nginx:
     image: nginx:alpine
-    container_name: moysklad_nginx
     restart: always
     ports:
       - "80:80"
-      #- "443:443"
+      # "443:443" включите после добавления HTTPS-конфига и сертификатов
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      #- /etc/letsencrypt:/etc/letsencrypt:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     networks:
       - app-network
 
