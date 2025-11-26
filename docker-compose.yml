@@ -9,10 +9,11 @@ services:
       # Установите секрет (обязательно в реальном окружении)
       # - APP_SECRET=your_real_secret_here
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:5000/expensesms/health || exit 1"]
-      interval: 20s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "curl", "-f", "http://localhost:5000/expensesms/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - app-network
 
@@ -24,10 +25,8 @@ services:
       # "443:443" включите после добавления HTTPS-конфига и сертификатов
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
-      app:
-        condition: service_healthy
+      - app
     networks:
       - app-network
 

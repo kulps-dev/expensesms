@@ -5,6 +5,11 @@ import json
 import logging
 import os
 
+# Добавьте это в самое начало файла app.py, после импортов
+if __name__ == '__main__':
+    # Это для локального запуска, в контейнере будет использоваться gunicorn
+    app.run(host='0.0.0.0', port=5000, debug=False)
+
 app = Flask(__name__)
 
 # Логирование
