@@ -34,7 +34,8 @@
         });
         
         document.getElementById('openBtn').addEventListener('click', function() {
-            var url = 'https://kulps.ru/iframe?contextKey=' + encodeURIComponent(contextKey);
+            // Исправленный URL с /expensesms
+            var url = 'https://kulps.ru/expensesms/iframe?contextKey=' + encodeURIComponent(contextKey);
             var w = 900;
             var h = 700;
             var left = (screen.width - w) / 2;

@@ -49,7 +49,6 @@
             margin-bottom: 12px;
         }
         
-        /* Поле выбора статьи */
         .category-wrapper {
             display: flex;
             gap: 8px;
@@ -290,7 +289,6 @@
         
         <div id="statusMessage" class="status-message"></div>
         
-        <!-- Поле статьи расходов с выпадающим списком -->
         <div class="input-section">
             <label class="input-label">📝 Статья расходов</label>
             <div class="category-wrapper">
@@ -375,6 +373,9 @@
         const urlParams = new URLSearchParams(window.location.search);
         const contextKey = urlParams.get('contextKey') || '';
         
+        // Базовый URL для API
+        const API_BASE = '/expensesms/api';
+        
         // Элементы
         const categoryInput = document.getElementById('categoryInput');
         const categoryDropdown = document.getElementById('categoryDropdown');
@@ -415,13 +416,12 @@
         // Загрузка категорий из справочника
         async function loadCategories() {
             try {
-                const response = await fetch('/api/expense-categories?contextKey=' + contextKey);
+                const response = await fetch(`${API_BASE}/expense-categories?contextKey=${contextKey}`);
                 const data = await response.json();
                 
                 categories = data.categories || [];
                 renderCategoryDropdown();
                 
-                // Устанавливаем первую категорию по умолчанию
                 if (categories.length > 0) {
                     categoryInput.value = categories[0].name;
                 }
@@ -459,7 +459,6 @@
                 </div>
             `).join('');
             
-            // Обработчики клика
             categoryDropdown.querySelectorAll('.category-option').forEach(opt => {
                 opt.addEventListener('click', () => {
                     categoryInput.value = opt.dataset.name;
@@ -481,7 +480,6 @@
                 return;
             }
             
-            // Проверяем что такой категории ещё нет
             if (categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
                 showStatus('Такая статья уже существует', 'info');
                 return;
@@ -491,7 +489,7 @@
             addCategoryBtn.textContent = '...';
             
             try {
-                const response = await fetch('/api/expense-categories', {
+                const response = await fetch(`${API_BASE}/expense-categories?contextKey=${contextKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name })
@@ -635,17 +633,15 @@
             clearBtn.disabled = true;
             
             try {
-                const response = await fetch('/api/process-expenses', {
+                const response = await fetch(`${API_BASE}/process-expenses?contextKey=${contextKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         expenses: validData.map(d => ({
                             demandNumber: d.demandNumber,
-                            expense: d.expense,
-                            comment: formatComment(d.expense)
+                            expense: d.expense
                         })),
-                        category: category,
-                        contextKey: contextKey
+                        category: category
                     })
                 });
                 
