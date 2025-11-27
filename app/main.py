@@ -2,7 +2,7 @@ import json
 import logging
 import os
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from pathlib import Path
 
 from fastapi import FastAPI, Request, HTTPException
@@ -24,9 +24,9 @@ templates = Jinja2Templates(directory="templates")
 # Путь к файлу хранилища
 DATA_DIR = Path("/app/data")
 ACCOUNTS_FILE = DATA_DIR / "accounts.json"
+CATEGORIES_FILE = DATA_DIR / "expense_categories.json"
 
-# Название справочника статей расходов
-EXPENSE_CATEGORY_ENTITY_NAME = "Статьи расходов"
+BASE_API_URL = "https://api.moysklad.ru/api/remap/1.2"
 
 
 # ============== Работа с хранилищем ==============
@@ -44,7 +44,7 @@ def load_accounts() -> dict:
         try:
             with open(ACCOUNTS_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                logger.info(f"📂 Загружено {len(data.get('accounts', {}))} аккаунтов из файла")
+                logger.info(f"📂 Загружено {len(data.get('accounts', {}))} аккаунтов")
                 return data
         except Exception as e:
             logger.error(f"❌ Ошибка чтения файла: {e}")
@@ -60,7 +60,7 @@ def save_accounts(data: dict):
     try:
         with open(ACCOUNTS_FILE, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-        logger.info(f"💾 Сохранено {len(data.get('accounts', {}))} аккаунтов в файл")
+        logger.info(f"💾 Сохранено {len(data.get('accounts', {}))} аккаунтов")
     except Exception as e:
         logger.error(f"❌ Ошибка записи файла: {e}")
 
@@ -75,45 +75,22 @@ def save_account(account_id: str, account_data: dict):
     """Сохранить данные аккаунта"""
     data = load_accounts()
     
-    # Обновляем или добавляем аккаунт
     if account_id in data["accounts"]:
-        # Обновляем существующий
         data["accounts"][account_id].update(account_data)
         data["accounts"][account_id]["updated_at"] = datetime.now().isoformat()
     else:
-        # Новый аккаунт
         account_data["created_at"] = datetime.now().isoformat()
         account_data["updated_at"] = datetime.now().isoformat()
         data["accounts"][account_id] = account_data
     
-    # Добавляем в историю
     data["history"].append({
         "timestamp": datetime.now().isoformat(),
         "action": "update",
         "account_id": account_id
     })
-    
-    # Ограничиваем историю последними 100 записями
     data["history"] = data["history"][-100:]
     
     save_accounts(data)
-
-
-def delete_account(account_id: str):
-    """Удалить аккаунт"""
-    data = load_accounts()
-    
-    if account_id in data["accounts"]:
-        del data["accounts"][account_id]
-        
-        data["history"].append({
-            "timestamp": datetime.now().isoformat(),
-            "action": "delete",
-            "account_id": account_id
-        })
-        
-        save_accounts(data)
-        logger.info(f"🗑️ Аккаунт {account_id} удалён")
 
 
 def get_any_token() -> Optional[str]:
@@ -125,10 +102,58 @@ def get_any_token() -> Optional[str]:
     return None
 
 
+# ============== Локальное хранилище категорий ==============
+
+def load_categories() -> List[dict]:
+    """Загрузить категории из локального файла"""
+    ensure_data_dir()
+    
+    if CATEGORIES_FILE.exists():
+        try:
+            with open(CATEGORIES_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            pass
+    
+    # Дефолтные категории
+    return [
+        {"id": "1", "name": "Доставка"},
+        {"id": "2", "name": "Упаковка"},
+        {"id": "3", "name": "Страховка"},
+    ]
+
+
+def save_categories(categories: List[dict]):
+    """Сохранить категории в локальный файл"""
+    ensure_data_dir()
+    
+    with open(CATEGORIES_FILE, 'w', encoding='utf-8') as f:
+        json.dump(categories, f, ensure_ascii=False, indent=2)
+
+
+def add_category(name: str) -> dict:
+    """Добавить новую категорию"""
+    categories = load_categories()
+    
+    # Проверяем дубликат
+    for cat in categories:
+        if cat["name"].lower() == name.lower():
+            return cat
+    
+    # Генерируем ID
+    max_id = max([int(c["id"]) for c in categories], default=0)
+    new_cat = {"id": str(max_id + 1), "name": name}
+    categories.append(new_cat)
+    save_categories(categories)
+    
+    return new_cat
+
+
 # ============== Работа с API МойСклад ==============
 
-async def moysklad_request(method: str, url: str, token: str, data: dict = None) -> dict:
-    """Выполнить запрос к API МойСклад"""
+async def moysklad_api(method: str, endpoint: str, token: str, data: dict = None) -> Optional[dict]:
+    """Универсальный метод для работы с API МойСклад"""
+    url = f"{BASE_API_URL}{endpoint}"
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
@@ -136,88 +161,107 @@ async def moysklad_request(method: str, url: str, token: str, data: dict = None)
     }
     
     async with httpx.AsyncClient(timeout=30.0) as client:
-        if method == "GET":
-            response = await client.get(url, headers=headers)
-        elif method == "POST":
-            response = await client.post(url, headers=headers, json=data)
-        elif method == "PUT":
-            response = await client.put(url, headers=headers, json=data)
-        else:
-            raise ValueError(f"Unknown method: {method}")
-        
-        logger.info(f"API {method} {url} -> {response.status_code}")
-        
-        if response.status_code in [200, 201]:
-            return response.json()
-        elif response.status_code == 404:
-            return None
-        else:
-            logger.error(f"API Error: {response.text}")
-            raise HTTPException(status_code=response.status_code, detail=response.text)
+        try:
+            if method == "GET":
+                response = await client.get(url, headers=headers)
+            elif method == "POST":
+                response = await client.post(url, headers=headers, json=data)
+            elif method == "PUT":
+                response = await client.put(url, headers=headers, json=data)
+            else:
+                raise ValueError(f"Unknown method: {method}")
+            
+            logger.info(f"API {method} {endpoint} -> {response.status_code}")
+            
+            if response.status_code in [200, 201]:
+                return response.json()
+            elif response.status_code == 404:
+                logger.warning(f"API 404: {endpoint}")
+                return None
+            else:
+                logger.error(f"API Error {response.status_code}: {response.text[:500]}")
+                return {"error": response.text, "status_code": response.status_code}
+                
+        except Exception as e:
+            logger.error(f"API Exception: {e}")
+            return {"error": str(e)}
 
 
-async def get_or_create_expense_entity(token: str) -> dict:
-    """Получить или создать справочник статей расходов"""
-    base_url = "https://api.moysklad.ru/api/remap/1.2"
+async def search_demand_by_name(token: str, demand_name: str) -> Optional[dict]:
+    """Найти отгрузку по номеру/имени"""
+    # Пробуем точный поиск
+    endpoint = f"/entity/demand?filter=name={demand_name}"
+    result = await moysklad_api("GET", endpoint, token)
     
-    # Ищем существующий справочник
-    search_url = f"{base_url}/entity/customentity"
-    entities = await moysklad_request("GET", search_url, token)
+    if result and "rows" in result and len(result["rows"]) > 0:
+        return result["rows"][0]
     
-    if entities and "rows" in entities:
-        for entity in entities["rows"]:
-            if entity.get("name") == EXPENSE_CATEGORY_ENTITY_NAME:
-                logger.info(f"Найден справочник: {entity['id']}")
-                return entity
+    # Пробуем поиск с ~
+    endpoint = f"/entity/demand?filter=name~{demand_name}"
+    result = await moysklad_api("GET", endpoint, token)
     
-    # Создаём новый справочник
-    create_url = f"{base_url}/entity/customentity"
-    new_entity = await moysklad_request("POST", create_url, token, {
-        "name": EXPENSE_CATEGORY_ENTITY_NAME
-    })
+    if result and "rows" in result and len(result["rows"]) > 0:
+        return result["rows"][0]
     
-    logger.info(f"Создан справочник: {new_entity['id']}")
-    return new_entity
+    # Пробуем поиск по search
+    endpoint = f"/entity/demand?search={demand_name}"
+    result = await moysklad_api("GET", endpoint, token)
+    
+    if result and "rows" in result and len(result["rows"]) > 0:
+        # Ищем точное совпадение в результатах
+        for row in result["rows"]:
+            if demand_name in row.get("name", ""):
+                return row
+        # Возвращаем первый результат
+        return result["rows"][0]
+    
+    return None
 
 
-async def get_expense_categories(token: str) -> list:
-    """Получить список статей расходов"""
-    base_url = "https://api.moysklad.ru/api/remap/1.2"
+async def update_demand_overhead(token: str, demand_id: str, overhead_sum: float, comment: str) -> dict:
+    """Обновить накладные расходы в отгрузке"""
     
-    entity = await get_or_create_expense_entity(token)
-    entity_id = entity["id"]
+    # Сначала получаем текущую отгрузку
+    endpoint = f"/entity/demand/{demand_id}"
+    demand = await moysklad_api("GET", endpoint, token)
     
-    elements_url = f"{base_url}/entity/customentity/{entity_id}/element"
-    elements = await moysklad_request("GET", elements_url, token)
+    if not demand or "error" in demand:
+        return {"success": False, "error": "Отгрузка не найдена"}
     
-    categories = []
-    if elements and "rows" in elements:
-        for elem in elements["rows"]:
-            categories.append({
-                "id": elem["id"],
-                "name": elem["name"]
-            })
+    # Получаем текущий комментарий
+    current_description = demand.get("description", "")
     
-    return categories
-
-
-async def add_expense_category(token: str, name: str) -> dict:
-    """Добавить новую статью расходов"""
-    base_url = "https://api.moysklad.ru/api/remap/1.2"
+    # Добавляем новый комментарий
+    if current_description:
+        new_description = f"{current_description}\n{comment}"
+    else:
+        new_description = comment
     
-    entity = await get_or_create_expense_entity(token)
-    entity_id = entity["id"]
-    
-    url = f"{base_url}/entity/customentity/{entity_id}/element"
-    new_element = await moysklad_request("POST", url, token, {
-        "name": name
-    })
-    
-    logger.info(f"Добавлена статья: {name}")
-    return {
-        "id": new_element["id"],
-        "name": new_element["name"]
+    # Формируем данные для обновления
+    update_data = {
+        "description": new_description,
+        "overhead": {
+            "sum": int(overhead_sum * 100),  # В копейках
+            "distribution": "weight"  # или "price" или "volume"
+        }
     }
+    
+    # Обновляем отгрузку
+    result = await moysklad_api("PUT", endpoint, token, update_data)
+    
+    if result and "error" not in result:
+        return {
+            "success": True,
+            "demand_id": demand_id,
+            "demand_name": demand.get("name"),
+            "overhead_sum": overhead_sum,
+            "comment": comment
+        }
+    else:
+        return {
+            "success": False,
+            "error": result.get("error", "Неизвестная ошибка") if result else "Нет ответа"
+        }
 
 
 # ============== Vendor API ==============
@@ -233,9 +277,7 @@ async def activate_app(app_id: str, account_id: str, request: Request):
         logger.info(f"{'='*60}")
         logger.info(f"App ID: {app_id}")
         logger.info(f"Account ID: {account_id}")
-        logger.info(f"Body: {json.dumps(body, ensure_ascii=False, indent=2)}")
         
-        # Извлекаем все данные
         access_token = None
         resource = None
         scope = None
@@ -250,10 +292,8 @@ async def activate_app(app_id: str, account_id: str, request: Request):
                     permissions = access.get("permissions")
                     break
         
-        # Данные подписки
         subscription = body.get("subscription", {})
         
-        # Формируем данные аккаунта
         account_data = {
             "app_id": app_id,
             "account_id": account_id,
@@ -261,40 +301,23 @@ async def activate_app(app_id: str, account_id: str, request: Request):
             "account_name": body.get("accountName", ""),
             "cause": body.get("cause", ""),
             "status": "active",
-            
-            # Токен и доступ
             "access_token": access_token,
             "resource": resource,
             "scope": scope,
             "permissions": permissions,
-            
-            # Подписка
             "tariff_id": subscription.get("tariffId"),
             "tariff_name": subscription.get("tariffName"),
             "is_trial": subscription.get("trial", False),
-            "not_for_resale": subscription.get("notForResale", False),
-            "is_partner": subscription.get("partner", False),
-            
-            # Метаданные
+            "expiry_moment": subscription.get("expiryMoment"),
             "activated_at": datetime.now().isoformat(),
-            "last_request_at": datetime.now().isoformat(),
         }
         
-        # Сохраняем
         save_account(account_id, account_data)
         
         logger.info(f"✅ Аккаунт сохранён: {account_id}")
         logger.info(f"   Account Name: {account_data['account_name']}")
         logger.info(f"   Tariff: {account_data['tariff_name']}")
         logger.info(f"   Token: {'✓' if access_token else '✗'}")
-        
-        # Создаём справочник при активации
-        if access_token:
-            try:
-                await get_or_create_expense_entity(access_token)
-                logger.info("✅ Справочник статей расходов создан/найден")
-            except Exception as e:
-                logger.error(f"⚠️ Ошибка создания справочника: {e}")
         
         return JSONResponse({"status": "Activated"})
         
@@ -306,18 +329,13 @@ async def activate_app(app_id: str, account_id: str, request: Request):
 @app.delete("/api/moysklad/vendor/1.0/apps/{app_id}/{account_id}")
 async def deactivate_app(app_id: str, account_id: str):
     """Деактивация приложения"""
-    logger.info(f"{'='*60}")
-    logger.info(f"🔴 ДЕАКТИВАЦИЯ ПРИЛОЖЕНИЯ")
-    logger.info(f"{'='*60}")
-    logger.info(f"App ID: {app_id}")
-    logger.info(f"Account ID: {account_id}")
+    logger.info(f"🔴 ДЕАКТИВАЦИЯ: {account_id}")
     
-    # Помечаем как неактивный (не удаляем данные)
     account = get_account(account_id)
     if account:
         account["status"] = "inactive"
         account["deactivated_at"] = datetime.now().isoformat()
-        account["access_token"] = None  # Удаляем токен
+        account["access_token"] = None
         save_account(account_id, account)
     
     return JSONResponse(status_code=200, content={})
@@ -329,90 +347,189 @@ async def get_status(app_id: str, account_id: str):
     account = get_account(account_id)
     
     if account and account.get("status") == "active":
-        # Обновляем время последнего запроса
-        account["last_request_at"] = datetime.now().isoformat()
-        save_account(account_id, account)
         return JSONResponse({"status": "Activated"})
     
     return JSONResponse({"status": "SettingsRequired"})
 
 
-# ============== API для просмотра данных ==============
-
-@app.get("/api/accounts")
-async def api_get_accounts():
-    """Получить список всех аккаунтов (для отладки)"""
-    data = load_accounts()
-    
-    # Скрываем токены в ответе
-    safe_accounts = {}
-    for acc_id, acc_data in data.get("accounts", {}).items():
-        safe_acc = acc_data.copy()
-        if safe_acc.get("access_token"):
-            safe_acc["access_token"] = "***" + safe_acc["access_token"][-8:]
-        safe_accounts[acc_id] = safe_acc
-    
-    return JSONResponse({
-        "accounts": safe_accounts,
-        "total": len(safe_accounts),
-        "history_count": len(data.get("history", []))
-    })
-
-
-@app.get("/api/accounts/{account_id}")
-async def api_get_account(account_id: str):
-    """Получить данные конкретного аккаунта"""
-    account = get_account(account_id)
-    
-    if not account:
-        raise HTTPException(status_code=404, detail="Account not found")
-    
-    # Скрываем токен
-    safe_acc = account.copy()
-    if safe_acc.get("access_token"):
-        safe_acc["access_token"] = "***" + safe_acc["access_token"][-8:]
-    
-    return JSONResponse(safe_acc)
-
-
-# ============== API для статей расходов ==============
+# ============== API для категорий (локальное хранилище) ==============
 
 @app.get("/api/expense-categories")
-async def api_get_categories(request: Request):
-    """Получить список статей расходов"""
-    token = get_any_token()
-    
-    if not token:
-        return JSONResponse({"categories": [], "error": "No active accounts"})
-    
-    try:
-        categories = await get_expense_categories(token)
-        return JSONResponse({"categories": categories})
-    except Exception as e:
-        logger.error(f"Ошибка получения категорий: {e}")
-        return JSONResponse({"categories": [], "error": str(e)})
+async def api_get_categories():
+    """Получить список категорий расходов"""
+    categories = load_categories()
+    return JSONResponse({"categories": categories})
 
 
 @app.post("/api/expense-categories")
 async def api_add_category(request: Request):
-    """Добавить новую статью расходов"""
+    """Добавить новую категорию"""
     body = await request.json()
     name = body.get("name", "").strip()
     
     if not name:
         return JSONResponse({"success": False, "error": "Название не указано"})
     
+    category = add_category(name)
+    logger.info(f"✅ Добавлена категория: {name}")
+    
+    return JSONResponse({"success": True, "category": category})
+
+
+# ============== API для обработки расходов ==============
+
+@app.post("/api/process-expenses")
+async def process_expenses(request: Request):
+    """Обработка и занесение расходов в отгрузки"""
+    try:
+        body = await request.json()
+        expenses_data = body.get("expenses", [])
+        category = body.get("category", "Накладные расходы")
+        
+        logger.info(f"{'='*60}")
+        logger.info(f"📊 ОБРАБОТКА РАСХОДОВ")
+        logger.info(f"{'='*60}")
+        logger.info(f"Записей: {len(expenses_data)}, Категория: {category}")
+        
+        token = get_any_token()
+        
+        if not token:
+            return JSONResponse({
+                "success": False,
+                "error": "Нет активного токена. Переустановите приложение в МойСклад."
+            })
+        
+        results = []
+        errors = []
+        
+        for item in expenses_data:
+            demand_number = item.get("demandNumber", "").strip()
+            expense_value = float(item.get("expense", 0))
+            comment = item.get("comment", f"{expense_value} руб - {category}")
+            
+            if not demand_number:
+                continue
+            
+            logger.info(f"🔍 Поиск отгрузки: {demand_number}")
+            
+            # Ищем отгрузку
+            demand = await search_demand_by_name(token, demand_number)
+            
+            if not demand:
+                error_msg = f"Отгрузка не найдена: {demand_number}"
+                logger.warning(f"⚠️ {error_msg}")
+                errors.append({
+                    "demandNumber": demand_number,
+                    "error": error_msg
+                })
+                continue
+            
+            demand_id = demand["id"]
+            demand_name = demand.get("name", demand_number)
+            
+            logger.info(f"✓ Найдена: {demand_name} (ID: {demand_id})")
+            
+            # Обновляем отгрузку
+            update_result = await update_demand_overhead(
+                token, 
+                demand_id, 
+                expense_value, 
+                comment
+            )
+            
+            if update_result["success"]:
+                logger.info(f"✅ Обновлено: {demand_name} = {expense_value} руб")
+                results.append({
+                    "demandNumber": demand_number,
+                    "demandName": demand_name,
+                    "expense": expense_value,
+                    "comment": comment,
+                    "status": "success"
+                })
+            else:
+                logger.error(f"❌ Ошибка: {update_result['error']}")
+                errors.append({
+                    "demandNumber": demand_number,
+                    "error": update_result["error"]
+                })
+        
+        logger.info(f"{'='*60}")
+        logger.info(f"📊 ИТОГО: Успешно {len(results)}, Ошибок {len(errors)}")
+        logger.info(f"{'='*60}")
+        
+        return JSONResponse({
+            "success": True,
+            "processed": len(results),
+            "errors": len(errors),
+            "results": results,
+            "errorDetails": errors
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка обработки: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
+# ============== Тестовый endpoint для проверки API ==============
+
+@app.get("/api/test-moysklad")
+async def test_moysklad():
+    """Тест подключения к МойСклад"""
     token = get_any_token()
     
     if not token:
-        return JSONResponse({"success": False, "error": "No active accounts"})
+        return JSONResponse({
+            "success": False,
+            "error": "Нет активного токена"
+        })
     
-    try:
-        category = await add_expense_category(token, name)
-        return JSONResponse({"success": True, "category": category})
-    except Exception as e:
-        logger.error(f"Ошибка добавления категории: {e}")
-        return JSONResponse({"success": False, "error": str(e)})
+    # Тестируем получение отгрузок
+    result = await moysklad_api("GET", "/entity/demand?limit=1", token)
+    
+    if result and "rows" in result:
+        return JSONResponse({
+            "success": True,
+            "message": "Подключение работает",
+            "demands_count": result.get("meta", {}).get("size", 0)
+        })
+    else:
+        return JSONResponse({
+            "success": False,
+            "error": result.get("error") if result else "Нет ответа"
+        })
+
+
+@app.get("/api/search-demand/{demand_name}")
+async def api_search_demand(demand_name: str):
+    """Поиск отгрузки по номеру (для тестирования)"""
+    token = get_any_token()
+    
+    if not token:
+        return JSONResponse({"success": False, "error": "Нет токена"})
+    
+    demand = await search_demand_by_name(token, demand_name)
+    
+    if demand:
+        return JSONResponse({
+            "success": True,
+            "demand": {
+                "id": demand["id"],
+                "name": demand.get("name"),
+                "description": demand.get("description"),
+                "sum": demand.get("sum"),
+                "overhead": demand.get("overhead")
+            }
+        })
+    else:
+        return JSONResponse({
+            "success": False,
+            "error": f"Отгрузка '{demand_name}' не найдена"
+        })
 
 
 # ============== Iframe и Widget ==============
@@ -437,60 +554,24 @@ async def widget_demand(request: Request):
     })
 
 
-# ============== API для обработки расходов ==============
+# ============== API для просмотра данных ==============
 
-@app.post("/api/process-expenses")
-async def process_expenses(request: Request):
-    """Обработка и занесение расходов в отгрузки"""
-    try:
-        body = await request.json()
-        expenses_data = body.get("expenses", [])
-        category = body.get("category", "Накладные расходы")
-        
-        logger.info(f"📊 Получено {len(expenses_data)} записей, категория: {category}")
-        
-        results = []
-        errors = []
-        
-        for item in expenses_data:
-            demand_number = item.get("demandNumber", "").strip()
-            expense_value = item.get("expense")
-            comment = item.get("comment", "")
-            
-            if not demand_number:
-                continue
-            
-            try:
-                # TODO: Здесь будет логика обновления через API МойСклад
-                results.append({
-                    "demandNumber": demand_number,
-                    "expense": expense_value,
-                    "comment": comment,
-                    "status": "success"
-                })
-                logger.info(f"✅ Обработано: {demand_number} = {expense_value} ({comment})")
-                
-            except Exception as e:
-                errors.append({
-                    "demandNumber": demand_number,
-                    "error": str(e)
-                })
-                logger.error(f"❌ Ошибка {demand_number}: {e}")
-        
-        return JSONResponse({
-            "success": True,
-            "processed": len(results),
-            "errors": len(errors),
-            "results": results,
-            "errorDetails": errors
-        })
-        
-    except Exception as e:
-        logger.error(f"❌ Ошибка обработки: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"success": False, "error": str(e)}
-        )
+@app.get("/api/accounts")
+async def api_get_accounts():
+    """Получить список аккаунтов (для отладки)"""
+    data = load_accounts()
+    
+    safe_accounts = {}
+    for acc_id, acc_data in data.get("accounts", {}).items():
+        safe_acc = acc_data.copy()
+        if safe_acc.get("access_token"):
+            safe_acc["access_token"] = "***" + safe_acc["access_token"][-8:]
+        safe_accounts[acc_id] = safe_acc
+    
+    return JSONResponse({
+        "accounts": safe_accounts,
+        "total": len(safe_accounts)
+    })
 
 
 # ============== Служебные endpoints ==============
@@ -500,7 +581,7 @@ async def root():
     data = load_accounts()
     return {
         "app": "Накладные расходы",
-        "version": "1.0",
+        "version": "1.1",
         "status": "running",
         "accounts_count": len(data.get("accounts", {}))
     }
@@ -511,7 +592,6 @@ async def health():
     return {"status": "healthy"}
 
 
-# Middleware
 @app.middleware("http")
 async def add_headers_and_log(request: Request, call_next):
     logger.info(f"➡️ {request.method} {request.url.path}")
