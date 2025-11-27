@@ -86,6 +86,11 @@ async def ms_api(method: str, endpoint: str, token: str, data: dict = None) -> d
     }
     
     async with httpx.AsyncClient(timeout=30.0) as client:
+        # Логируем запрос
+        logger.info(f"🔵 REQUEST: {method} {url}")
+        if data:
+            logger.info(f"🔵 BODY: {json.dumps(data, ensure_ascii=False)}")
+        
         if method == "GET":
             resp = await client.get(url, headers=headers)
         elif method == "POST":
@@ -95,12 +100,20 @@ async def ms_api(method: str, endpoint: str, token: str, data: dict = None) -> d
         else:
             return {"_error": "Unknown method"}
         
-        logger.info(f"API {method} {endpoint} -> {resp.status_code}")
+        # Логируем ответ
+        logger.info(f"🟢 RESPONSE: {resp.status_code}")
         
         try:
             result = resp.json()
+            # Логируем часть ответа
+            resp_str = json.dumps(result, ensure_ascii=False, default=str)
+            if len(resp_str) > 500:
+                logger.info(f"🟢 BODY: {resp_str[:500]}...")
+            else:
+                logger.info(f"🟢 BODY: {resp_str}")
         except:
             result = {"_text": resp.text[:1000]}
+            logger.info(f"🟢 TEXT: {resp.text[:500]}")
         
         result["_status"] = resp.status_code
         return result
@@ -160,20 +173,19 @@ async def search_demand(token: str, name: str):
 
 
 async def update_demand_overhead(token: str, demand_id: str, add_sum: float, category: str) -> dict:
-    """Обновить накладные расходы - суммирует с текущими"""
+    """Обновить накладные расходы"""
     demand = await ms_api("GET", f"/entity/demand/{demand_id}", token)
     if demand.get("_status") != 200:
         return {"success": False, "error": "Отгрузка не найдена"}
     
     demand_name = demand.get("name", "")
     
-    # Текущие накладные расходы (в копейках)
+    # Текущие накладные расходы
     current_overhead = 0
     overhead_data = demand.get("overhead")
-    if overhead_data:
+    if overhead_data and overhead_data.get("sum"):
         current_overhead = overhead_data.get("sum", 0)
     
-    # Новая сумма
     new_overhead = current_overhead + int(add_sum * 100)
     
     logger.info(f"📊 {demand_name}: {current_overhead/100:.2f} + {add_sum:.2f} = {new_overhead/100:.2f}")
@@ -184,31 +196,32 @@ async def update_demand_overhead(token: str, demand_id: str, add_sum: float, cat
     current_desc = demand.get("description") or ""
     new_desc = f"{current_desc}\n{new_comment}".strip()
     
-    # Обновляем - передаём ТОЛЬКО sum, без distribution!
-    result = await ms_api("PUT", f"/entity/demand/{demand_id}", token, {
+    # Обновляем с правильным форматом overhead
+    update_data = {
         "description": new_desc,
-        "overheadSum": new_overhead  # Пробуем через overheadSum
-    })
+        "overhead": {
+            "sum": new_overhead,
+            "distribution": "weight"
+        }
+    }
     
-    # Если не сработало, пробуем другой формат
-    if result.get("_status") != 200:
-        logger.info("Пробуем формат overhead.sum...")
-        result = await ms_api("PUT", f"/entity/demand/{demand_id}", token, {
-            "description": new_desc,
-            "overhead": {
-                "sum": new_overhead
-            }
-        })
+    logger.info(f"⚡ ОБНОВЛЕНИЕ ОТГРУЗКИ {demand_name}")
+    result = await ms_api("PUT", f"/entity/demand/{demand_id}", token, update_data)
     
     if result.get("_status") == 200:
+        # Проверяем что overhead записался
+        result_overhead = result.get("overhead")
+        logger.info(f"✅ Результат overhead: {result_overhead}")
+        
         return {
             "success": True,
             "demand_name": demand_name,
             "added": add_sum,
-            "total": new_overhead / 100
+            "total": new_overhead / 100,
+            "result_overhead": result_overhead
         }
     
-    logger.error(f"Ошибка: {result}")
+    logger.error(f"❌ Ошибка обновления: {result}")
     return {"success": False, "error": str(result)}
 
 
@@ -301,7 +314,11 @@ async def process_expenses(request: Request):
     expenses = body.get("expenses", [])
     category = body.get("category", "Накладные расходы")
     
-    logger.info(f"📊 ОБРАБОТКА: {len(expenses)} записей, категория: {category}")
+    logger.info("=" * 70)
+    logger.info(f"📊 ОБРАБОТКА РАСХОДОВ: {len(expenses)} записей")
+    logger.info(f"📁 Категория: {category}")
+    logger.info(f"🕐 Время (МСК): {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info("=" * 70)
     
     token = get_any_token()
     if not token:
@@ -329,9 +346,12 @@ async def process_expenses(request: Request):
                 "total": r.get("total"),
                 "status": "success"
             })
-            logger.info(f"✅ {num}: +{val} = {r.get('total')}")
         else:
             errors.append({"demandNumber": num, "error": r.get("error")})
+    
+    logger.info("=" * 70)
+    logger.info(f"✅ Успешно: {len(results)}, ❌ Ошибок: {len(errors)}")
+    logger.info("=" * 70)
     
     return JSONResponse({
         "success": True,
@@ -372,7 +392,6 @@ async def test_demand(demand_name: str):
     if not demand:
         return JSONResponse({"error": "Не найдена"})
     
-    # Получаем полную информацию
     full = await ms_api("GET", f"/entity/demand/{demand['id']}", token)
     
     return JSONResponse({
@@ -398,7 +417,7 @@ async def widget_demand(request: Request):
 
 @app.get("/")
 async def root():
-    return {"app": "Накладные расходы", "version": "2.1"}
+    return {"app": "Накладные расходы", "version": "2.2"}
 
 
 @app.get("/health")
