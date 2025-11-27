@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 from datetime import datetime
 from typing import Optional, List
 from pathlib import Path
@@ -10,7 +9,6 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import httpx
 
-# Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
@@ -18,61 +16,44 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Накладные расходы - МойСклад")
-
 templates = Jinja2Templates(directory="templates")
 
-# Путь к файлу хранилища
 DATA_DIR = Path("/app/data")
 ACCOUNTS_FILE = DATA_DIR / "accounts.json"
-CATEGORIES_FILE = DATA_DIR / "expense_categories.json"
 
 BASE_API_URL = "https://api.moysklad.ru/api/remap/1.2"
+EXPENSE_DICTIONARY_NAME = "Статьи накладных расходов"
 
 
-# ============== Работа с хранилищем ==============
+# ============== Работа с хранилищем аккаунтов ==============
 
 def ensure_data_dir():
-    """Создать директорию для данных если не существует"""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def load_accounts() -> dict:
-    """Загрузить данные аккаунтов из файла"""
     ensure_data_dir()
-    
     if ACCOUNTS_FILE.exists():
         try:
             with open(ACCOUNTS_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                logger.info(f"📂 Загружено {len(data.get('accounts', {}))} аккаунтов")
-                return data
-        except Exception as e:
-            logger.error(f"❌ Ошибка чтения файла: {e}")
-            return {"accounts": {}, "history": []}
-    
+                return json.load(f)
+        except:
+            pass
     return {"accounts": {}, "history": []}
 
 
 def save_accounts(data: dict):
-    """Сохранить данные аккаунтов в файл"""
     ensure_data_dir()
-    
-    try:
-        with open(ACCOUNTS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        logger.info(f"💾 Сохранено {len(data.get('accounts', {}))} аккаунтов")
-    except Exception as e:
-        logger.error(f"❌ Ошибка записи файла: {e}")
+    with open(ACCOUNTS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 
 def get_account(account_id: str) -> Optional[dict]:
-    """Получить данные аккаунта"""
     data = load_accounts()
     return data.get("accounts", {}).get(account_id)
 
 
 def save_account(account_id: str, account_data: dict):
-    """Сохранить данные аккаунта"""
     data = load_accounts()
     
     if account_id in data["accounts"]:
@@ -89,12 +70,10 @@ def save_account(account_id: str, account_data: dict):
         "account_id": account_id
     })
     data["history"] = data["history"][-100:]
-    
     save_accounts(data)
 
 
 def get_any_token() -> Optional[str]:
-    """Получить любой активный токен"""
     data = load_accounts()
     for acc_id, acc_data in data.get("accounts", {}).items():
         if acc_data.get("status") == "active" and acc_data.get("access_token"):
@@ -102,57 +81,10 @@ def get_any_token() -> Optional[str]:
     return None
 
 
-# ============== Локальное хранилище категорий ==============
-
-def load_categories() -> List[dict]:
-    """Загрузить категории из локального файла"""
-    ensure_data_dir()
-    
-    if CATEGORIES_FILE.exists():
-        try:
-            with open(CATEGORIES_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except:
-            pass
-    
-    # Дефолтные категории
-    return [
-        {"id": "1", "name": "Доставка"},
-        {"id": "2", "name": "Упаковка"},
-        {"id": "3", "name": "Страховка"},
-    ]
-
-
-def save_categories(categories: List[dict]):
-    """Сохранить категории в локальный файл"""
-    ensure_data_dir()
-    
-    with open(CATEGORIES_FILE, 'w', encoding='utf-8') as f:
-        json.dump(categories, f, ensure_ascii=False, indent=2)
-
-
-def add_category(name: str) -> dict:
-    """Добавить новую категорию"""
-    categories = load_categories()
-    
-    # Проверяем дубликат
-    for cat in categories:
-        if cat["name"].lower() == name.lower():
-            return cat
-    
-    # Генерируем ID
-    max_id = max([int(c["id"]) for c in categories], default=0)
-    new_cat = {"id": str(max_id + 1), "name": name}
-    categories.append(new_cat)
-    save_categories(categories)
-    
-    return new_cat
-
-
 # ============== Работа с API МойСклад ==============
 
-async def moysklad_api(method: str, endpoint: str, token: str, data: dict = None) -> Optional[dict]:
-    """Универсальный метод для работы с API МойСклад"""
+async def ms_request(method: str, endpoint: str, token: str, data: dict = None) -> Optional[dict]:
+    """Запрос к API МойСклад"""
     url = f"{BASE_API_URL}{endpoint}"
     headers = {
         "Authorization": f"Bearer {token}",
@@ -169,98 +101,193 @@ async def moysklad_api(method: str, endpoint: str, token: str, data: dict = None
             elif method == "PUT":
                 response = await client.put(url, headers=headers, json=data)
             else:
-                raise ValueError(f"Unknown method: {method}")
+                return {"error": f"Unknown method: {method}"}
             
-            logger.info(f"API {method} {endpoint} -> {response.status_code}")
+            logger.info(f"MS API {method} {endpoint} -> {response.status_code}")
             
             if response.status_code in [200, 201]:
                 return response.json()
-            elif response.status_code == 404:
-                logger.warning(f"API 404: {endpoint}")
-                return None
             else:
-                logger.error(f"API Error {response.status_code}: {response.text[:500]}")
-                return {"error": response.text, "status_code": response.status_code}
+                error_text = response.text[:500]
+                logger.error(f"MS API Error: {error_text}")
+                return {"error": error_text, "status_code": response.status_code}
                 
         except Exception as e:
-            logger.error(f"API Exception: {e}")
+            logger.error(f"MS API Exception: {e}")
             return {"error": str(e)}
 
 
-async def search_demand_by_name(token: str, demand_name: str) -> Optional[dict]:
-    """Найти отгрузку по номеру/имени"""
-    # Пробуем точный поиск
-    endpoint = f"/entity/demand?filter=name={demand_name}"
-    result = await moysklad_api("GET", endpoint, token)
+# ============== Справочник статей расходов ==============
+
+async def get_expense_dictionary(token: str) -> Optional[dict]:
+    """Получить справочник статей расходов"""
+    # Получаем список всех пользовательских справочников
+    result = await ms_request("GET", "/entity/customentity/metadata", token)
     
-    if result and "rows" in result and len(result["rows"]) > 0:
-        return result["rows"][0]
+    if not result or "error" in result:
+        logger.error(f"Ошибка получения справочников: {result}")
+        return None
     
-    # Пробуем поиск с ~
-    endpoint = f"/entity/demand?filter=name~{demand_name}"
-    result = await moysklad_api("GET", endpoint, token)
-    
-    if result and "rows" in result and len(result["rows"]) > 0:
-        return result["rows"][0]
-    
-    # Пробуем поиск по search
-    endpoint = f"/entity/demand?search={demand_name}"
-    result = await moysklad_api("GET", endpoint, token)
-    
-    if result and "rows" in result and len(result["rows"]) > 0:
-        # Ищем точное совпадение в результатах
-        for row in result["rows"]:
-            if demand_name in row.get("name", ""):
-                return row
-        # Возвращаем первый результат
-        return result["rows"][0]
+    # Ищем наш справочник
+    if "rows" in result:
+        for entity in result["rows"]:
+            if entity.get("name") == EXPENSE_DICTIONARY_NAME:
+                logger.info(f"✓ Найден справочник: {entity['id']}")
+                return entity
     
     return None
 
 
-async def update_demand_overhead(token: str, demand_id: str, overhead_sum: float, comment: str) -> dict:
+async def create_expense_dictionary(token: str) -> Optional[dict]:
+    """Создать справочник статей расходов"""
+    logger.info(f"📝 Создание справочника: {EXPENSE_DICTIONARY_NAME}")
+    
+    result = await ms_request("POST", "/entity/customentity", token, {
+        "name": EXPENSE_DICTIONARY_NAME
+    })
+    
+    if result and "id" in result:
+        logger.info(f"✅ Справочник создан: {result['id']}")
+        return result
+    else:
+        logger.error(f"❌ Ошибка создания справочника: {result}")
+        return None
+
+
+async def get_or_create_expense_dictionary(token: str) -> Optional[dict]:
+    """Получить или создать справочник"""
+    dictionary = await get_expense_dictionary(token)
+    
+    if dictionary:
+        return dictionary
+    
+    return await create_expense_dictionary(token)
+
+
+async def get_expense_categories(token: str) -> List[dict]:
+    """Получить элементы справочника (статьи расходов)"""
+    dictionary = await get_or_create_expense_dictionary(token)
+    
+    if not dictionary:
+        return []
+    
+    dict_id = dictionary["id"]
+    
+    # Получаем элементы справочника
+    result = await ms_request("GET", f"/entity/customentity/{dict_id}", token)
+    
+    if not result or "error" in result:
+        return []
+    
+    categories = []
+    
+    # Элементы могут быть в разных местах в зависимости от версии API
+    elements = result.get("elements", result.get("rows", []))
+    
+    if isinstance(elements, dict) and "rows" in elements:
+        elements = elements["rows"]
+    
+    # Если элементов нет в основном ответе, запрашиваем отдельно
+    if not elements:
+        elements_result = await ms_request("GET", f"/entity/customentity/{dict_id}/element", token)
+        if elements_result and "rows" in elements_result:
+            elements = elements_result["rows"]
+    
+    for elem in elements:
+        if isinstance(elem, dict):
+            categories.append({
+                "id": elem.get("id"),
+                "name": elem.get("name")
+            })
+    
+    logger.info(f"📋 Загружено {len(categories)} статей расходов")
+    return categories
+
+
+async def add_expense_category(token: str, name: str) -> Optional[dict]:
+    """Добавить новую статью расходов в справочник"""
+    dictionary = await get_or_create_expense_dictionary(token)
+    
+    if not dictionary:
+        return None
+    
+    dict_id = dictionary["id"]
+    
+    # Создаём элемент справочника
+    result = await ms_request("POST", f"/entity/customentity/{dict_id}/element", token, {
+        "name": name
+    })
+    
+    if result and "id" in result:
+        logger.info(f"✅ Добавлена статья: {name}")
+        return {
+            "id": result["id"],
+            "name": result["name"]
+        }
+    else:
+        logger.error(f"❌ Ошибка добавления статьи: {result}")
+        return None
+
+
+# ============== Работа с отгрузками ==============
+
+async def search_demand(token: str, demand_name: str) -> Optional[dict]:
+    """Найти отгрузку по номеру"""
+    # Пробуем разные варианты поиска
+    search_variants = [
+        f"/entity/demand?filter=name={demand_name}",
+        f"/entity/demand?filter=name~{demand_name}",
+        f"/entity/demand?search={demand_name}",
+    ]
+    
+    for endpoint in search_variants:
+        result = await ms_request("GET", endpoint, token)
+        
+        if result and "rows" in result and len(result["rows"]) > 0:
+            # Ищем точное или частичное совпадение
+            for row in result["rows"]:
+                if demand_name in row.get("name", ""):
+                    return row
+            return result["rows"][0]
+    
+    return None
+
+
+async def update_demand(token: str, demand_id: str, overhead_sum: float, comment: str) -> dict:
     """Обновить накладные расходы в отгрузке"""
     
-    # Сначала получаем текущую отгрузку
-    endpoint = f"/entity/demand/{demand_id}"
-    demand = await moysklad_api("GET", endpoint, token)
+    # Получаем текущую отгрузку
+    demand = await ms_request("GET", f"/entity/demand/{demand_id}", token)
     
     if not demand or "error" in demand:
         return {"success": False, "error": "Отгрузка не найдена"}
     
-    # Получаем текущий комментарий
-    current_description = demand.get("description", "")
+    # Формируем новый комментарий
+    current_desc = demand.get("description", "") or ""
+    new_desc = f"{current_desc}\n{comment}".strip() if current_desc else comment
     
-    # Добавляем новый комментарий
-    if current_description:
-        new_description = f"{current_description}\n{comment}"
-    else:
-        new_description = comment
-    
-    # Формируем данные для обновления
+    # Обновляем
     update_data = {
-        "description": new_description,
+        "description": new_desc,
         "overhead": {
             "sum": int(overhead_sum * 100),  # В копейках
-            "distribution": "weight"  # или "price" или "volume"
+            "distribution": "weight"
         }
     }
     
-    # Обновляем отгрузку
-    result = await moysklad_api("PUT", endpoint, token, update_data)
+    result = await ms_request("PUT", f"/entity/demand/{demand_id}", token, update_data)
     
-    if result and "error" not in result:
+    if result and "id" in result:
         return {
             "success": True,
             "demand_id": demand_id,
             "demand_name": demand.get("name"),
-            "overhead_sum": overhead_sum,
-            "comment": comment
+            "overhead_sum": overhead_sum
         }
     else:
         return {
             "success": False,
-            "error": result.get("error", "Неизвестная ошибка") if result else "Нет ответа"
+            "error": result.get("error", "Ошибка обновления") if result else "Нет ответа"
         }
 
 
@@ -273,23 +300,14 @@ async def activate_app(app_id: str, account_id: str, request: Request):
         body = await request.json()
         
         logger.info(f"{'='*60}")
-        logger.info(f"🟢 АКТИВАЦИЯ ПРИЛОЖЕНИЯ")
+        logger.info(f"🟢 АКТИВАЦИЯ: {account_id}")
         logger.info(f"{'='*60}")
-        logger.info(f"App ID: {app_id}")
-        logger.info(f"Account ID: {account_id}")
         
         access_token = None
-        resource = None
-        scope = None
-        permissions = None
-        
         if body.get("access"):
             for access in body["access"]:
                 if access.get("access_token"):
                     access_token = access["access_token"]
-                    resource = access.get("resource")
-                    scope = access.get("scope")
-                    permissions = access.get("permissions")
                     break
         
         subscription = body.get("subscription", {})
@@ -302,22 +320,21 @@ async def activate_app(app_id: str, account_id: str, request: Request):
             "cause": body.get("cause", ""),
             "status": "active",
             "access_token": access_token,
-            "resource": resource,
-            "scope": scope,
-            "permissions": permissions,
-            "tariff_id": subscription.get("tariffId"),
+            "permissions": body.get("access", [{}])[0].get("permissions") if body.get("access") else None,
             "tariff_name": subscription.get("tariffName"),
-            "is_trial": subscription.get("trial", False),
             "expiry_moment": subscription.get("expiryMoment"),
             "activated_at": datetime.now().isoformat(),
         }
         
         save_account(account_id, account_data)
+        logger.info(f"✅ Сохранён: {account_data['account_name']}, токен: {'✓' if access_token else '✗'}")
         
-        logger.info(f"✅ Аккаунт сохранён: {account_id}")
-        logger.info(f"   Account Name: {account_data['account_name']}")
-        logger.info(f"   Tariff: {account_data['tariff_name']}")
-        logger.info(f"   Token: {'✓' if access_token else '✗'}")
+        # Создаём справочник при активации
+        if access_token:
+            try:
+                await get_or_create_expense_dictionary(access_token)
+            except Exception as e:
+                logger.error(f"⚠️ Ошибка создания справочника: {e}")
         
         return JSONResponse({"status": "Activated"})
         
@@ -334,8 +351,8 @@ async def deactivate_app(app_id: str, account_id: str):
     account = get_account(account_id)
     if account:
         account["status"] = "inactive"
-        account["deactivated_at"] = datetime.now().isoformat()
         account["access_token"] = None
+        account["deactivated_at"] = datetime.now().isoformat()
         save_account(account_id, account)
     
     return JSONResponse(status_code=200, content={})
@@ -345,58 +362,71 @@ async def deactivate_app(app_id: str, account_id: str):
 async def get_status(app_id: str, account_id: str):
     """Статус приложения"""
     account = get_account(account_id)
-    
     if account and account.get("status") == "active":
         return JSONResponse({"status": "Activated"})
-    
     return JSONResponse({"status": "SettingsRequired"})
 
 
-# ============== API для категорий (локальное хранилище) ==============
+# ============== API для категорий ==============
 
 @app.get("/api/expense-categories")
 async def api_get_categories():
-    """Получить список категорий расходов"""
-    categories = load_categories()
-    return JSONResponse({"categories": categories})
+    """Получить статьи расходов из справочника МойСклад"""
+    token = get_any_token()
+    
+    if not token:
+        return JSONResponse({"categories": [], "error": "Нет активного токена"})
+    
+    try:
+        categories = await get_expense_categories(token)
+        return JSONResponse({"categories": categories})
+    except Exception as e:
+        logger.error(f"Ошибка: {e}")
+        return JSONResponse({"categories": [], "error": str(e)})
 
 
 @app.post("/api/expense-categories")
 async def api_add_category(request: Request):
-    """Добавить новую категорию"""
+    """Добавить статью расходов в справочник МойСклад"""
     body = await request.json()
     name = body.get("name", "").strip()
     
     if not name:
         return JSONResponse({"success": False, "error": "Название не указано"})
     
-    category = add_category(name)
-    logger.info(f"✅ Добавлена категория: {name}")
+    token = get_any_token()
+    if not token:
+        return JSONResponse({"success": False, "error": "Нет активного токена"})
     
-    return JSONResponse({"success": True, "category": category})
+    try:
+        category = await add_expense_category(token, name)
+        if category:
+            return JSONResponse({"success": True, "category": category})
+        else:
+            return JSONResponse({"success": False, "error": "Не удалось добавить"})
+    except Exception as e:
+        return JSONResponse({"success": False, "error": str(e)})
 
 
 # ============== API для обработки расходов ==============
 
 @app.post("/api/process-expenses")
 async def process_expenses(request: Request):
-    """Обработка и занесение расходов в отгрузки"""
+    """Занести накладные расходы в отгрузки"""
     try:
         body = await request.json()
         expenses_data = body.get("expenses", [])
         category = body.get("category", "Накладные расходы")
         
         logger.info(f"{'='*60}")
-        logger.info(f"📊 ОБРАБОТКА РАСХОДОВ")
+        logger.info(f"📊 ОБРАБОТКА: {len(expenses_data)} записей, категория: {category}")
         logger.info(f"{'='*60}")
-        logger.info(f"Записей: {len(expenses_data)}, Категория: {category}")
         
         token = get_any_token()
-        
         if not token:
             return JSONResponse({
                 "success": False,
-                "error": "Нет активного токена. Переустановите приложение в МойСклад."
+                "error": "Нет активного токена. Переустановите приложение."
             })
         
         results = []
@@ -405,57 +435,35 @@ async def process_expenses(request: Request):
         for item in expenses_data:
             demand_number = item.get("demandNumber", "").strip()
             expense_value = float(item.get("expense", 0))
-            comment = item.get("comment", f"{expense_value} руб - {category}")
+            comment = item.get("comment", f"{expense_value:.2f} руб - {category}")
             
             if not demand_number:
                 continue
             
-            logger.info(f"🔍 Поиск отгрузки: {demand_number}")
-            
             # Ищем отгрузку
-            demand = await search_demand_by_name(token, demand_number)
+            demand = await search_demand(token, demand_number)
             
             if not demand:
-                error_msg = f"Отгрузка не найдена: {demand_number}"
-                logger.warning(f"⚠️ {error_msg}")
-                errors.append({
-                    "demandNumber": demand_number,
-                    "error": error_msg
-                })
+                errors.append({"demandNumber": demand_number, "error": "Не найдена"})
+                logger.warning(f"⚠️ Не найдена: {demand_number}")
                 continue
             
-            demand_id = demand["id"]
-            demand_name = demand.get("name", demand_number)
+            # Обновляем
+            result = await update_demand(token, demand["id"], expense_value, comment)
             
-            logger.info(f"✓ Найдена: {demand_name} (ID: {demand_id})")
-            
-            # Обновляем отгрузку
-            update_result = await update_demand_overhead(
-                token, 
-                demand_id, 
-                expense_value, 
-                comment
-            )
-            
-            if update_result["success"]:
-                logger.info(f"✅ Обновлено: {demand_name} = {expense_value} руб")
+            if result["success"]:
                 results.append({
                     "demandNumber": demand_number,
-                    "demandName": demand_name,
+                    "demandName": result.get("demand_name"),
                     "expense": expense_value,
-                    "comment": comment,
                     "status": "success"
                 })
+                logger.info(f"✅ {demand_number} = {expense_value} руб")
             else:
-                logger.error(f"❌ Ошибка: {update_result['error']}")
-                errors.append({
-                    "demandNumber": demand_number,
-                    "error": update_result["error"]
-                })
+                errors.append({"demandNumber": demand_number, "error": result["error"]})
+                logger.error(f"❌ {demand_number}: {result['error']}")
         
-        logger.info(f"{'='*60}")
-        logger.info(f"📊 ИТОГО: Успешно {len(results)}, Ошибок {len(errors)}")
-        logger.info(f"{'='*60}")
+        logger.info(f"📊 ИТОГО: ✅ {len(results)} / ❌ {len(errors)}")
         
         return JSONResponse({
             "success": True,
@@ -466,125 +474,77 @@ async def process_expenses(request: Request):
         })
         
     except Exception as e:
-        logger.error(f"❌ Ошибка обработки: {e}")
-        import traceback
-        traceback.print_exc()
-        return JSONResponse(
-            status_code=500,
-            content={"success": False, "error": str(e)}
-        )
+        logger.error(f"❌ Ошибка: {e}")
+        return JSONResponse(status_code=500, content={"success": False, "error": str(e)})
 
 
-# ============== Тестовый endpoint для проверки API ==============
+# ============== Тестовые endpoints ==============
 
-@app.get("/api/test-moysklad")
-async def test_moysklad():
+@app.get("/api/test-connection")
+async def test_connection():
     """Тест подключения к МойСклад"""
     token = get_any_token()
-    
     if not token:
-        return JSONResponse({
-            "success": False,
-            "error": "Нет активного токена"
-        })
+        return JSONResponse({"success": False, "error": "Нет токена"})
     
-    # Тестируем получение отгрузок
-    result = await moysklad_api("GET", "/entity/demand?limit=1", token)
+    result = await ms_request("GET", "/entity/demand?limit=1", token)
     
     if result and "rows" in result:
         return JSONResponse({
             "success": True,
             "message": "Подключение работает",
-            "demands_count": result.get("meta", {}).get("size", 0)
+            "total_demands": result.get("meta", {}).get("size", 0)
         })
-    else:
-        return JSONResponse({
-            "success": False,
-            "error": result.get("error") if result else "Нет ответа"
-        })
+    return JSONResponse({"success": False, "error": str(result)})
 
 
-@app.get("/api/search-demand/{demand_name}")
-async def api_search_demand(demand_name: str):
-    """Поиск отгрузки по номеру (для тестирования)"""
+@app.get("/api/test-dictionary")
+async def test_dictionary():
+    """Тест справочника"""
     token = get_any_token()
-    
     if not token:
         return JSONResponse({"success": False, "error": "Нет токена"})
     
-    demand = await search_demand_by_name(token, demand_name)
+    dictionary = await get_or_create_expense_dictionary(token)
+    categories = await get_expense_categories(token)
     
-    if demand:
-        return JSONResponse({
-            "success": True,
-            "demand": {
-                "id": demand["id"],
-                "name": demand.get("name"),
-                "description": demand.get("description"),
-                "sum": demand.get("sum"),
-                "overhead": demand.get("overhead")
-            }
-        })
-    else:
-        return JSONResponse({
-            "success": False,
-            "error": f"Отгрузка '{demand_name}' не найдена"
-        })
+    return JSONResponse({
+        "success": True,
+        "dictionary": dictionary,
+        "categories": categories
+    })
 
 
 # ============== Iframe и Widget ==============
 
 @app.get("/iframe", response_class=HTMLResponse)
 async def iframe_page(request: Request):
-    """Главный iframe приложения"""
-    context_key = request.query_params.get("contextKey", "")
-    return templates.TemplateResponse("iframe.html", {
-        "request": request,
-        "context_key": context_key
-    })
+    return templates.TemplateResponse("iframe.html", {"request": request})
 
 
 @app.get("/widget-demand", response_class=HTMLResponse)
 async def widget_demand(request: Request):
-    """Виджет в карточке отгрузки"""
-    context_key = request.query_params.get("contextKey", "")
-    return templates.TemplateResponse("widget_demand.html", {
-        "request": request,
-        "context_key": context_key
-    })
+    return templates.TemplateResponse("widget_demand.html", {"request": request})
 
 
-# ============== API для просмотра данных ==============
+# ============== Служебные ==============
 
 @app.get("/api/accounts")
 async def api_get_accounts():
-    """Получить список аккаунтов (для отладки)"""
     data = load_accounts()
-    
-    safe_accounts = {}
-    for acc_id, acc_data in data.get("accounts", {}).items():
-        safe_acc = acc_data.copy()
-        if safe_acc.get("access_token"):
-            safe_acc["access_token"] = "***" + safe_acc["access_token"][-8:]
-        safe_accounts[acc_id] = safe_acc
-    
-    return JSONResponse({
-        "accounts": safe_accounts,
-        "total": len(safe_accounts)
-    })
+    safe = {}
+    for acc_id, acc in data.get("accounts", {}).items():
+        s = acc.copy()
+        if s.get("access_token"):
+            s["access_token"] = "***" + s["access_token"][-8:]
+        safe[acc_id] = s
+    return JSONResponse({"accounts": safe, "total": len(safe)})
 
-
-# ============== Служебные endpoints ==============
 
 @app.get("/")
 async def root():
     data = load_accounts()
-    return {
-        "app": "Накладные расходы",
-        "version": "1.1",
-        "status": "running",
-        "accounts_count": len(data.get("accounts", {}))
-    }
+    return {"app": "Накладные расходы", "version": "1.2", "accounts": len(data.get("accounts", {}))}
 
 
 @app.get("/health")
@@ -593,16 +553,11 @@ async def health():
 
 
 @app.middleware("http")
-async def add_headers_and_log(request: Request, call_next):
+async def middleware(request: Request, call_next):
     logger.info(f"➡️ {request.method} {request.url.path}")
-    
     response = await call_next(request)
-    
     response.headers["X-Frame-Options"] = "ALLOWALL"
     response.headers["Content-Security-Policy"] = "frame-ancestors *"
     response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    
     logger.info(f"⬅️ {response.status_code}")
     return response
