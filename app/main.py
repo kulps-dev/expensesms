@@ -1,7 +1,9 @@
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Optional
+from pathlib import Path
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -19,22 +21,111 @@ app = FastAPI(title="Накладные расходы - МойСклад")
 
 templates = Jinja2Templates(directory="templates")
 
-# Хранилище токенов аккаунтов
-accounts_storage: dict = {}
+# Путь к файлу хранилища
+DATA_DIR = Path("/app/data")
+ACCOUNTS_FILE = DATA_DIR / "accounts.json"
 
 # Название справочника статей расходов
 EXPENSE_CATEGORY_ENTITY_NAME = "Статьи расходов"
 
 
-# ============== Работа с API МойСклад ==============
+# ============== Работа с хранилищем ==============
 
-async def get_access_token(account_id: str) -> Optional[str]:
-    """Получить токен доступа для аккаунта"""
-    account = accounts_storage.get(account_id)
-    if account:
-        return account.get("access_token")
+def ensure_data_dir():
+    """Создать директорию для данных если не существует"""
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def load_accounts() -> dict:
+    """Загрузить данные аккаунтов из файла"""
+    ensure_data_dir()
+    
+    if ACCOUNTS_FILE.exists():
+        try:
+            with open(ACCOUNTS_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                logger.info(f"📂 Загружено {len(data.get('accounts', {}))} аккаунтов из файла")
+                return data
+        except Exception as e:
+            logger.error(f"❌ Ошибка чтения файла: {e}")
+            return {"accounts": {}, "history": []}
+    
+    return {"accounts": {}, "history": []}
+
+
+def save_accounts(data: dict):
+    """Сохранить данные аккаунтов в файл"""
+    ensure_data_dir()
+    
+    try:
+        with open(ACCOUNTS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        logger.info(f"💾 Сохранено {len(data.get('accounts', {}))} аккаунтов в файл")
+    except Exception as e:
+        logger.error(f"❌ Ошибка записи файла: {e}")
+
+
+def get_account(account_id: str) -> Optional[dict]:
+    """Получить данные аккаунта"""
+    data = load_accounts()
+    return data.get("accounts", {}).get(account_id)
+
+
+def save_account(account_id: str, account_data: dict):
+    """Сохранить данные аккаунта"""
+    data = load_accounts()
+    
+    # Обновляем или добавляем аккаунт
+    if account_id in data["accounts"]:
+        # Обновляем существующий
+        data["accounts"][account_id].update(account_data)
+        data["accounts"][account_id]["updated_at"] = datetime.now().isoformat()
+    else:
+        # Новый аккаунт
+        account_data["created_at"] = datetime.now().isoformat()
+        account_data["updated_at"] = datetime.now().isoformat()
+        data["accounts"][account_id] = account_data
+    
+    # Добавляем в историю
+    data["history"].append({
+        "timestamp": datetime.now().isoformat(),
+        "action": "update",
+        "account_id": account_id
+    })
+    
+    # Ограничиваем историю последними 100 записями
+    data["history"] = data["history"][-100:]
+    
+    save_accounts(data)
+
+
+def delete_account(account_id: str):
+    """Удалить аккаунт"""
+    data = load_accounts()
+    
+    if account_id in data["accounts"]:
+        del data["accounts"][account_id]
+        
+        data["history"].append({
+            "timestamp": datetime.now().isoformat(),
+            "action": "delete",
+            "account_id": account_id
+        })
+        
+        save_accounts(data)
+        logger.info(f"🗑️ Аккаунт {account_id} удалён")
+
+
+def get_any_token() -> Optional[str]:
+    """Получить любой активный токен"""
+    data = load_accounts()
+    for acc_id, acc_data in data.get("accounts", {}).items():
+        if acc_data.get("status") == "active" and acc_data.get("access_token"):
+            return acc_data["access_token"]
     return None
 
+
+# ============== Работа с API МойСклад ==============
 
 async def moysklad_request(method: str, url: str, token: str, data: dict = None) -> dict:
     """Выполнить запрос к API МойСклад"""
@@ -93,15 +184,9 @@ async def get_expense_categories(token: str) -> list:
     """Получить список статей расходов"""
     base_url = "https://api.moysklad.ru/api/remap/1.2"
     
-    # Получаем справочник
     entity = await get_or_create_expense_entity(token)
     entity_id = entity["id"]
     
-    # Получаем элементы справочника
-    url = f"{base_url}/entity/customentity/{entity_id}"
-    result = await moysklad_request("GET", url, token)
-    
-    # Получаем элементы
     elements_url = f"{base_url}/entity/customentity/{entity_id}/element"
     elements = await moysklad_request("GET", elements_url, token)
     
@@ -120,11 +205,9 @@ async def add_expense_category(token: str, name: str) -> dict:
     """Добавить новую статью расходов"""
     base_url = "https://api.moysklad.ru/api/remap/1.2"
     
-    # Получаем справочник
     entity = await get_or_create_expense_entity(token)
     entity_id = entity["id"]
     
-    # Создаём элемент
     url = f"{base_url}/entity/customentity/{entity_id}/element"
     new_element = await moysklad_request("POST", url, token, {
         "name": name
@@ -144,33 +227,77 @@ async def activate_app(app_id: str, account_id: str, request: Request):
     """Активация приложения"""
     try:
         body = await request.json()
-        logger.info(f"🟢 Активация: account_id={account_id}")
         
-        # Сохраняем токен доступа
+        logger.info(f"{'='*60}")
+        logger.info(f"🟢 АКТИВАЦИЯ ПРИЛОЖЕНИЯ")
+        logger.info(f"{'='*60}")
+        logger.info(f"App ID: {app_id}")
+        logger.info(f"Account ID: {account_id}")
+        logger.info(f"Body: {json.dumps(body, ensure_ascii=False, indent=2)}")
+        
+        # Извлекаем все данные
         access_token = None
+        resource = None
+        scope = None
+        permissions = None
+        
         if body.get("access"):
             for access in body["access"]:
                 if access.get("access_token"):
                     access_token = access["access_token"]
+                    resource = access.get("resource")
+                    scope = access.get("scope")
+                    permissions = access.get("permissions")
                     break
         
-        accounts_storage[account_id] = {
+        # Данные подписки
+        subscription = body.get("subscription", {})
+        
+        # Формируем данные аккаунта
+        account_data = {
             "app_id": app_id,
+            "account_id": account_id,
+            "app_uid": body.get("appUid", ""),
             "account_name": body.get("accountName", ""),
+            "cause": body.get("cause", ""),
+            "status": "active",
+            
+            # Токен и доступ
             "access_token": access_token,
-            "activated_at": datetime.now().isoformat()
+            "resource": resource,
+            "scope": scope,
+            "permissions": permissions,
+            
+            # Подписка
+            "tariff_id": subscription.get("tariffId"),
+            "tariff_name": subscription.get("tariffName"),
+            "is_trial": subscription.get("trial", False),
+            "not_for_resale": subscription.get("notForResale", False),
+            "is_partner": subscription.get("partner", False),
+            
+            # Метаданные
+            "activated_at": datetime.now().isoformat(),
+            "last_request_at": datetime.now().isoformat(),
         }
         
-        logger.info(f"✅ Аккаунт сохранён: {account_id}, token: {'есть' if access_token else 'нет'}")
+        # Сохраняем
+        save_account(account_id, account_data)
+        
+        logger.info(f"✅ Аккаунт сохранён: {account_id}")
+        logger.info(f"   Account Name: {account_data['account_name']}")
+        logger.info(f"   Tariff: {account_data['tariff_name']}")
+        logger.info(f"   Token: {'✓' if access_token else '✗'}")
         
         # Создаём справочник при активации
         if access_token:
             try:
                 await get_or_create_expense_entity(access_token)
+                logger.info("✅ Справочник статей расходов создан/найден")
             except Exception as e:
-                logger.error(f"Ошибка создания справочника: {e}")
+                logger.error(f"⚠️ Ошибка создания справочника: {e}")
         
         return JSONResponse({"status": "Activated"})
+        
     except Exception as e:
         logger.error(f"❌ Ошибка активации: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -179,17 +306,73 @@ async def activate_app(app_id: str, account_id: str, request: Request):
 @app.delete("/api/moysklad/vendor/1.0/apps/{app_id}/{account_id}")
 async def deactivate_app(app_id: str, account_id: str):
     """Деактивация приложения"""
-    logger.info(f"🔴 Деактивация: {account_id}")
-    accounts_storage.pop(account_id, None)
+    logger.info(f"{'='*60}")
+    logger.info(f"🔴 ДЕАКТИВАЦИЯ ПРИЛОЖЕНИЯ")
+    logger.info(f"{'='*60}")
+    logger.info(f"App ID: {app_id}")
+    logger.info(f"Account ID: {account_id}")
+    
+    # Помечаем как неактивный (не удаляем данные)
+    account = get_account(account_id)
+    if account:
+        account["status"] = "inactive"
+        account["deactivated_at"] = datetime.now().isoformat()
+        account["access_token"] = None  # Удаляем токен
+        save_account(account_id, account)
+    
     return JSONResponse(status_code=200, content={})
 
 
 @app.get("/api/moysklad/vendor/1.0/apps/{app_id}/{account_id}/status")
 async def get_status(app_id: str, account_id: str):
     """Статус приложения"""
-    if account_id in accounts_storage:
+    account = get_account(account_id)
+    
+    if account and account.get("status") == "active":
+        # Обновляем время последнего запроса
+        account["last_request_at"] = datetime.now().isoformat()
+        save_account(account_id, account)
         return JSONResponse({"status": "Activated"})
+    
     return JSONResponse({"status": "SettingsRequired"})
+
+
+# ============== API для просмотра данных ==============
+
+@app.get("/api/accounts")
+async def api_get_accounts():
+    """Получить список всех аккаунтов (для отладки)"""
+    data = load_accounts()
+    
+    # Скрываем токены в ответе
+    safe_accounts = {}
+    for acc_id, acc_data in data.get("accounts", {}).items():
+        safe_acc = acc_data.copy()
+        if safe_acc.get("access_token"):
+            safe_acc["access_token"] = "***" + safe_acc["access_token"][-8:]
+        safe_accounts[acc_id] = safe_acc
+    
+    return JSONResponse({
+        "accounts": safe_accounts,
+        "total": len(safe_accounts),
+        "history_count": len(data.get("history", []))
+    })
+
+
+@app.get("/api/accounts/{account_id}")
+async def api_get_account(account_id: str):
+    """Получить данные конкретного аккаунта"""
+    account = get_account(account_id)
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    # Скрываем токен
+    safe_acc = account.copy()
+    if safe_acc.get("access_token"):
+        safe_acc["access_token"] = "***" + safe_acc["access_token"][-8:]
+    
+    return JSONResponse(safe_acc)
 
 
 # ============== API для статей расходов ==============
@@ -197,17 +380,10 @@ async def get_status(app_id: str, account_id: str):
 @app.get("/api/expense-categories")
 async def api_get_categories(request: Request):
     """Получить список статей расходов"""
-    context_key = request.query_params.get("contextKey", "")
-    
-    # Находим токен по любому аккаунту (для простоты)
-    token = None
-    for acc_id, acc_data in accounts_storage.items():
-        if acc_data.get("access_token"):
-            token = acc_data["access_token"]
-            break
+    token = get_any_token()
     
     if not token:
-        return JSONResponse({"categories": [], "error": "No token"})
+        return JSONResponse({"categories": [], "error": "No active accounts"})
     
     try:
         categories = await get_expense_categories(token)
@@ -226,15 +402,10 @@ async def api_add_category(request: Request):
     if not name:
         return JSONResponse({"success": False, "error": "Название не указано"})
     
-    # Находим токен
-    token = None
-    for acc_id, acc_data in accounts_storage.items():
-        if acc_data.get("access_token"):
-            token = acc_data["access_token"]
-            break
+    token = get_any_token()
     
     if not token:
-        return JSONResponse({"success": False, "error": "No token"})
+        return JSONResponse({"success": False, "error": "No active accounts"})
     
     try:
         category = await add_expense_category(token, name)
@@ -244,7 +415,7 @@ async def api_add_category(request: Request):
         return JSONResponse({"success": False, "error": str(e)})
 
 
-# ============== Iframe ==============
+# ============== Iframe и Widget ==============
 
 @app.get("/iframe", response_class=HTMLResponse)
 async def iframe_page(request: Request):
@@ -256,8 +427,6 @@ async def iframe_page(request: Request):
     })
 
 
-# ============== Widget ==============
-
 @app.get("/widget-demand", response_class=HTMLResponse)
 async def widget_demand(request: Request):
     """Виджет в карточке отгрузки"""
@@ -266,14 +435,6 @@ async def widget_demand(request: Request):
         "request": request,
         "context_key": context_key
     })
-
-
-@app.post("/widget-demand/open-feedback")
-async def widget_open_feedback(request: Request):
-    """Open feedback для виджета"""
-    body = await request.json()
-    logger.info(f"📬 Widget open-feedback: {json.dumps(body, ensure_ascii=False)}")
-    return JSONResponse({"status": "ok"})
 
 
 # ============== API для обработки расходов ==============
@@ -336,7 +497,13 @@ async def process_expenses(request: Request):
 
 @app.get("/")
 async def root():
-    return {"app": "Накладные расходы", "version": "1.0", "status": "running"}
+    data = load_accounts()
+    return {
+        "app": "Накладные расходы",
+        "version": "1.0",
+        "status": "running",
+        "accounts_count": len(data.get("accounts", {}))
+    }
 
 
 @app.get("/health")
