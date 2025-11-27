@@ -17,21 +17,35 @@
         <button class="btn" onclick="openPopup()">Занести расходы</button>
     </div>
     <script>
-        (function() {
-            var params = new URLSearchParams(window.location.search);
-            var contextKey = params.get('contextKey') || '';
+        var contextKey = new URLSearchParams(window.location.search).get('contextKey') || '';
+        var correlationId = null;
+        
+        window.addEventListener('message', function(e) {
+            var data = e.data;
+            if (!data || typeof data !== 'object') return;
             
-            window.addEventListener('message', function(e) {
-                var d = e.data;
-                if (d && d.name === 'Open') {
-                    window.parent.postMessage({ name: 'OpenFeedback', messageId: d.messageId }, '*');
-                }
-            });
+            console.log('Widget received:', data);
             
-            window.openPopup = function() {
-                window.parent.postMessage({ name: 'OpenPopup', url: '/iframe?contextKey=' + contextKey }, '*');
-            };
-        })();
+            if (data.name === 'Open') {
+                correlationId = data.messageId;
+                
+                // Отправляем OpenFeedback с correlationId
+                window.parent.postMessage({
+                    name: 'OpenFeedback',
+                    correlationId: correlationId
+                }, 'https://online.moysklad.ru');
+                
+                console.log('Sent OpenFeedback with correlationId:', correlationId);
+            }
+        });
+        
+        function openPopup() {
+            window.parent.postMessage({
+                name: 'OpenPopup',
+                correlationId: correlationId,
+                url: 'https://kulps.ru/iframe?contextKey=' + encodeURIComponent(contextKey)
+            }, 'https://online.moysklad.ru');
+        }
     </script>
 </body>
 </html>
