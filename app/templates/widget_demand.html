@@ -14,7 +14,7 @@
 <body>
     <div class="row">
         <span class="label">📊 Накладные расходы</span>
-        <button class="btn" onclick="openPopup()">Занести расходы</button>
+        <button class="btn" id="openBtn">Занести расходы</button>
     </div>
     <script>
         var contextKey = new URLSearchParams(window.location.search).get('contextKey') || '';
@@ -24,30 +24,26 @@
             var data = e.data;
             if (!data || typeof data !== 'object') return;
             
-            console.log('WIDGET MSG:', data);
-            
             if (data.name === 'Open') {
                 correlationId = data.messageId;
-                
                 window.parent.postMessage({
                     name: 'OpenFeedback',
                     correlationId: correlationId
                 }, 'https://online.moysklad.ru');
-                
-                console.log('SENT OpenFeedback, correlationId=' + correlationId);
             }
         });
         
-        function openPopup() {
-            console.log('Opening popup...');
+        document.getElementById('openBtn').addEventListener('click', function() {
+            var url = 'https://kulps.ru/iframe?contextKey=' + encodeURIComponent(contextKey);
+            var w = 900;
+            var h = 700;
+            var left = (screen.width - w) / 2;
+            var top = (screen.height - h) / 2;
             
-            // Способ 1: Через postMessage
-            window.parent.postMessage({
-                name: 'openApplication'
-            }, 'https://online.moysklad.ru');
-            
-            console.log('SENT openApplication');
-        }
+            window.open(url, 'ExpensesPopup', 
+                'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + 
+                ',scrollbars=yes,resizable=yes,toolbar=no,menubar=no');
+        });
     </script>
 </body>
 </html>
