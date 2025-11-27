@@ -2,17 +2,12 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Виджет</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            padding: 12px 16px;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            padding: 10px 16px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             font-size: 14px;
             background: #fff;
         }
@@ -20,7 +15,6 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 12px;
         }
         .info {
             display: flex;
@@ -28,91 +22,58 @@
             gap: 8px;
             color: #333;
         }
-        .icon {
-            font-size: 18px;
-        }
         .btn {
             background: #4caf50;
             color: #fff;
             border: none;
-            padding: 8px 16px;
+            padding: 8px 20px;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: 500;
-            transition: background 0.2s;
         }
-        .btn:hover {
-            background: #43a047;
-        }
+        .btn:hover { background: #43a047; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="info">
-            <span class="icon">📊</span>
+            <span>📊</span>
             <span>Накладные расходы</span>
         </div>
-        <button class="btn" id="openBtn">Занести расходы</button>
+        <button class="btn" onclick="openPopup()">Занести расходы</button>
     </div>
     
     <script>
-        // Получаем параметры из URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const contextKey = urlParams.get('contextKey') || '';
-        
-        console.log('Widget initializing, contextKey:', contextKey);
-        
-        // ВАЖНО: Отправляем сигнал Ready для МойСклад
-        // Это покажет iframe (уберёт display: none)
-        function sendReady() {
-            const message = {
-                name: 'Ready',
-                height: 60
-            };
-            
-            console.log('Sending Ready message:', message);
-            
-            // Отправляем в родительское окно
-            if (window.parent && window.parent !== window) {
-                window.parent.postMessage(message, '*');
-            }
-        }
-        
-        // Отправляем Ready сразу и после загрузки
-        sendReady();
-        
-        document.addEventListener('DOMContentLoaded', function() {
-            sendReady();
-            console.log('Widget DOM loaded');
-        });
-        
-        window.addEventListener('load', function() {
-            sendReady();
-            console.log('Widget fully loaded');
-        });
+        var contextKey = new URLSearchParams(window.location.search).get('contextKey') || '';
+        var messageId = 0;
         
         // Слушаем сообщения от МойСклад
         window.addEventListener('message', function(event) {
-            console.log('← Received message:', event.data);
+            var data = event.data;
+            console.log('MSG:', data);
             
-            if (event.data && event.data.name === 'Open') {
-                console.log('Open event received, objectId:', event.data.objectId);
-                // Повторно отправляем Ready
-                sendReady();
+            // Когда получаем Open - отвечаем OpenFeedback
+            if (data && data.name === 'Open') {
+                messageId = data.messageId || 0;
+                
+                // Отправляем OpenFeedback чтобы показать виджет
+                window.parent.postMessage({
+                    name: 'OpenFeedback',
+                    messageId: messageId
+                }, '*');
+                
+                console.log('Sent OpenFeedback');
             }
         });
         
-        // Кнопка открытия popup
-        document.getElementById('openBtn').addEventListener('click', function() {
-            console.log('Button clicked, opening application');
-            
-            // Открываем главный iframe приложения
+        function openPopup() {
+            console.log('Opening popup');
             window.parent.postMessage({
                 name: 'OpenPopup',
-                url: 'https://kulps.ru/iframe?contextKey=' + encodeURIComponent(contextKey)
+                url: '/iframe?contextKey=' + encodeURIComponent(contextKey)
             }, '*');
-        });
+        }
     </script>
 </body>
 </html>
