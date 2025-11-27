@@ -24,27 +24,29 @@
             var data = e.data;
             if (!data || typeof data !== 'object') return;
             
-            console.log('Widget received:', data);
+            console.log('WIDGET MSG:', data);
             
             if (data.name === 'Open') {
                 correlationId = data.messageId;
                 
-                // Отправляем OpenFeedback с correlationId
                 window.parent.postMessage({
                     name: 'OpenFeedback',
                     correlationId: correlationId
                 }, 'https://online.moysklad.ru');
                 
-                console.log('Sent OpenFeedback with correlationId:', correlationId);
+                console.log('SENT OpenFeedback, correlationId=' + correlationId);
             }
         });
         
         function openPopup() {
+            console.log('Opening popup...');
+            
+            // Способ 1: Через postMessage
             window.parent.postMessage({
-                name: 'OpenPopup',
-                correlationId: correlationId,
-                url: 'https://kulps.ru/iframe?contextKey=' + encodeURIComponent(contextKey)
+                name: 'openApplication'
             }, 'https://online.moysklad.ru');
+            
+            console.log('SENT openApplication');
         }
     </script>
 </body>
