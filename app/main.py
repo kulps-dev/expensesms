@@ -205,10 +205,19 @@ async def health():
     return {"status": "healthy"}
 
 
-# Логирование всех запросов
+# Middleware для логирования и заголовков
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
+async def add_headers_and_log(request: Request, call_next):
     logger.info(f"➡️ {request.method} {request.url.path}")
+    
     response = await call_next(request)
+    
+    # Разрешаем встраивание в iframe МойСклад
+    response.headers["X-Frame-Options"] = "ALLOWALL"
+    response.headers["Content-Security-Policy"] = "frame-ancestors *"
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    
     logger.info(f"⬅️ {response.status_code}")
     return response
