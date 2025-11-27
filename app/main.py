@@ -73,7 +73,6 @@ def save_dictionary_id(dict_id: str):
     settings["expense_dictionary_id"] = dict_id
     settings["dictionary_saved_at"] = datetime.now().isoformat()
     save_settings(settings)
-    logger.info(f"💾 Сохранён ID справочника: {dict_id}")
 
 
 # ============== API МойСклад ==============
@@ -109,73 +108,43 @@ async def ms_api(method: str, endpoint: str, token: str, data: dict = None) -> d
 
 # ============== Справочник ==============
 
-async def create_dictionary(token: str) -> Optional[str]:
-    """Создать справочник и вернуть его ID"""
-    logger.info(f"📝 Создание справочника: {DICTIONARY_NAME}")
-    
-    result = await ms_api("POST", "/entity/customentity", token, {
-        "name": DICTIONARY_NAME
-    })
-    
-    if result.get("_status") in [200, 201] and result.get("id"):
-        dict_id = result["id"]
-        save_dictionary_id(dict_id)
-        logger.info(f"✅ Справочник создан: {dict_id}")
-        return dict_id
-    
-    if result.get("_status") == 412:
-        logger.info("⚠️ Справочник уже существует")
-        return get_dictionary_id()
-    
-    return None
-
-
 async def ensure_dictionary(token: str) -> Optional[str]:
-    """Получить ID справочника или создать новый"""
     dict_id = get_dictionary_id()
-    
     if dict_id:
         check = await ms_api("GET", f"/entity/customentity/{dict_id}", token)
         if check.get("_status") == 200:
             return dict_id
     
-    return await create_dictionary(token)
+    result = await ms_api("POST", "/entity/customentity", token, {"name": DICTIONARY_NAME})
+    if result.get("_status") in [200, 201] and result.get("id"):
+        save_dictionary_id(result["id"])
+        return result["id"]
+    if result.get("_status") == 412:
+        return get_dictionary_id()
+    return None
 
 
 async def get_expense_categories(token: str, dict_id: str) -> List[dict]:
-    """Получить элементы справочника"""
     result = await ms_api("GET", f"/entity/customentity/{dict_id}", token)
-    
     categories = []
     if result.get("_status") == 200 and "rows" in result:
         for elem in result["rows"]:
-            categories.append({
-                "id": elem.get("id"),
-                "name": elem.get("name")
-            })
-    
+            categories.append({"id": elem.get("id"), "name": elem.get("name")})
     return categories
 
 
 async def add_expense_category(token: str, dict_id: str, name: str) -> Optional[dict]:
-    """Добавить элемент в справочник"""
-    result = await ms_api("POST", f"/entity/customentity/{dict_id}", token, {
-        "name": name
-    })
-    
+    result = await ms_api("POST", f"/entity/customentity/{dict_id}", token, {"name": name})
     if result.get("_status") in [200, 201] and result.get("id"):
         return {"id": result["id"], "name": result.get("name", name)}
-    
     if result.get("_status") == 412:
         return {"id": "exists", "name": name}
-    
     return None
 
 
 # ============== Отгрузки ==============
 
 async def search_demand(token: str, name: str):
-    """Поиск отгрузки по номеру"""
     for ep in [
         f"/entity/demand?filter=name={name}",
         f"/entity/demand?filter=name~{name}",
@@ -191,62 +160,56 @@ async def search_demand(token: str, name: str):
 
 
 async def update_demand_overhead(token: str, demand_id: str, add_sum: float, category: str) -> dict:
-    """
-    Обновить накладные расходы в отгрузке
-    - Суммирует с существующими расходами
-    - Добавляет запись в комментарий
-    - НЕ блокирует ручное редактирование
-    """
-    # Получаем текущую отгрузку
+    """Обновить накладные расходы - суммирует с текущими"""
     demand = await ms_api("GET", f"/entity/demand/{demand_id}", token)
     if demand.get("_status") != 200:
         return {"success": False, "error": "Отгрузка не найдена"}
     
     demand_name = demand.get("name", "")
     
-    # Получаем текущие накладные расходы (в копейках)
+    # Текущие накладные расходы (в копейках)
     current_overhead = 0
-    if demand.get("overhead") and demand["overhead"].get("sum"):
-        current_overhead = demand["overhead"]["sum"]
+    overhead_data = demand.get("overhead")
+    if overhead_data:
+        current_overhead = overhead_data.get("sum", 0)
     
-    # Новая сумма = текущая + добавляемая (переводим в копейки)
+    # Новая сумма
     new_overhead = current_overhead + int(add_sum * 100)
     
-    logger.info(f"📊 {demand_name}: было {current_overhead/100:.2f}, добавляем {add_sum:.2f}, будет {new_overhead/100:.2f}")
+    logger.info(f"📊 {demand_name}: {current_overhead/100:.2f} + {add_sum:.2f} = {new_overhead/100:.2f}")
     
-    # Формируем комментарий
+    # Комментарий
     timestamp = datetime.now().strftime("%d.%m.%Y %H:%M")
     new_comment = f"[{timestamp}] +{add_sum:.2f} руб - {category}"
-    
     current_desc = demand.get("description") or ""
-    if current_desc:
-        new_desc = f"{current_desc}\n{new_comment}"
-    else:
-        new_desc = new_comment
+    new_desc = f"{current_desc}\n{new_comment}".strip()
     
-    # Обновляем отгрузку
-    # Используем только sum без distribution чтобы не блокировать поле
-    update_data = {
+    # Обновляем - передаём ТОЛЬКО sum, без distribution!
+    result = await ms_api("PUT", f"/entity/demand/{demand_id}", token, {
         "description": new_desc,
-        "overhead": {
-            "sum": new_overhead
-        }
-    }
+        "overheadSum": new_overhead  # Пробуем через overheadSum
+    })
     
-    result = await ms_api("PUT", f"/entity/demand/{demand_id}", token, update_data)
+    # Если не сработало, пробуем другой формат
+    if result.get("_status") != 200:
+        logger.info("Пробуем формат overhead.sum...")
+        result = await ms_api("PUT", f"/entity/demand/{demand_id}", token, {
+            "description": new_desc,
+            "overhead": {
+                "sum": new_overhead
+            }
+        })
     
     if result.get("_status") == 200:
-        logger.info(f"✅ Обновлено: {demand_name}")
         return {
             "success": True,
             "demand_name": demand_name,
-            "previous_overhead": current_overhead / 100,
             "added": add_sum,
-            "new_overhead": new_overhead / 100
+            "total": new_overhead / 100
         }
-    else:
-        logger.error(f"❌ Ошибка: {result}")
-        return {"success": False, "error": str(result)}
+    
+    logger.error(f"Ошибка: {result}")
+    return {"success": False, "error": str(result)}
 
 
 # ============== Vendor API ==============
@@ -254,10 +217,7 @@ async def update_demand_overhead(token: str, demand_id: str, add_sum: float, cat
 @app.put("/api/moysklad/vendor/1.0/apps/{app_id}/{account_id}")
 async def activate_app(app_id: str, account_id: str, request: Request):
     body = await request.json()
-    
-    logger.info("=" * 60)
     logger.info(f"🟢 АКТИВАЦИЯ: {account_id}")
-    logger.info("=" * 60)
     
     token = None
     for acc in body.get("access", []):
@@ -274,11 +234,9 @@ async def activate_app(app_id: str, account_id: str, request: Request):
         "activated_at": datetime.now().isoformat()
     })
     
-    logger.info(f"✅ Аккаунт сохранён, токен: {'✓' if token else '✗'}")
-    
     if token:
         dict_id = await ensure_dictionary(token)
-        logger.info(f"📚 Справочник: {dict_id or 'НЕ СОЗДАН'}")
+        logger.info(f"📚 Справочник: {dict_id}")
     
     return JSONResponse({"status": "Activated"})
 
@@ -300,7 +258,7 @@ async def get_status(app_id: str, account_id: str):
     return JSONResponse({"status": "Activated" if acc and acc.get("status") == "active" else "SettingsRequired"})
 
 
-# ============== API категорий ==============
+# ============== API ==============
 
 @app.get("/api/expense-categories")
 async def api_get_categories():
@@ -310,7 +268,7 @@ async def api_get_categories():
     
     dict_id = await ensure_dictionary(token)
     if not dict_id:
-        return JSONResponse({"categories": [], "error": "Не удалось получить справочник"})
+        return JSONResponse({"categories": [], "error": "Нет справочника"})
     
     categories = await get_expense_categories(token, dict_id)
     return JSONResponse({"categories": categories})
@@ -320,7 +278,6 @@ async def api_get_categories():
 async def api_add_category(request: Request):
     body = await request.json()
     name = body.get("name", "").strip()
-    
     if not name:
         return JSONResponse({"success": False, "error": "Название не указано"})
     
@@ -330,70 +287,51 @@ async def api_add_category(request: Request):
     
     dict_id = await ensure_dictionary(token)
     if not dict_id:
-        return JSONResponse({"success": False, "error": "Не удалось получить справочник"})
+        return JSONResponse({"success": False, "error": "Нет справочника"})
     
     cat = await add_expense_category(token, dict_id, name)
     if cat:
         return JSONResponse({"success": True, "category": cat})
-    return JSONResponse({"success": False, "error": "Не удалось добавить"})
+    return JSONResponse({"success": False, "error": "Ошибка"})
 
-
-# ============== API обработки расходов ==============
 
 @app.post("/api/process-expenses")
 async def process_expenses(request: Request):
-    """Массовое занесение накладных расходов"""
     body = await request.json()
     expenses = body.get("expenses", [])
     category = body.get("category", "Накладные расходы")
     
-    logger.info("=" * 60)
-    logger.info(f"📊 ОБРАБОТКА РАСХОДОВ: {len(expenses)} записей")
-    logger.info(f"📁 Категория: {category}")
-    logger.info("=" * 60)
+    logger.info(f"📊 ОБРАБОТКА: {len(expenses)} записей, категория: {category}")
     
     token = get_any_token()
     if not token:
         return JSONResponse({"success": False, "error": "Нет токена"})
     
-    results = []
-    errors = []
+    results, errors = [], []
     
     for item in expenses:
-        demand_number = item.get("demandNumber", "").strip()
-        expense_value = float(item.get("expense", 0))
+        num = item.get("demandNumber", "").strip()
+        val = float(item.get("expense", 0))
         
-        if not demand_number:
+        if not num or val <= 0:
             continue
         
-        if expense_value <= 0:
-            errors.append({"demandNumber": demand_number, "error": "Сумма должна быть > 0"})
-            continue
-        
-        # Ищем отгрузку
-        demand = await search_demand(token, demand_number)
+        demand = await search_demand(token, num)
         if not demand:
-            errors.append({"demandNumber": demand_number, "error": "Отгрузка не найдена"})
-            logger.warning(f"⚠️ Не найдена: {demand_number}")
+            errors.append({"demandNumber": num, "error": "Не найдена"})
             continue
         
-        # Обновляем накладные расходы (суммируем!)
-        result = await update_demand_overhead(token, demand["id"], expense_value, category)
-        
-        if result["success"]:
+        r = await update_demand_overhead(token, demand["id"], val, category)
+        if r["success"]:
             results.append({
-                "demandNumber": demand_number,
-                "demandName": result.get("demand_name"),
-                "added": expense_value,
-                "total": result.get("new_overhead"),
+                "demandNumber": num,
+                "added": val,
+                "total": r.get("total"),
                 "status": "success"
             })
+            logger.info(f"✅ {num}: +{val} = {r.get('total')}")
         else:
-            errors.append({"demandNumber": demand_number, "error": result.get("error", "Ошибка")})
-    
-    logger.info("=" * 60)
-    logger.info(f"✅ Успешно: {len(results)}, ❌ Ошибок: {len(errors)}")
-    logger.info("=" * 60)
+            errors.append({"demandNumber": num, "error": r.get("error")})
     
     return JSONResponse({
         "success": True,
@@ -410,24 +348,40 @@ async def process_expenses(request: Request):
 async def debug():
     token = get_any_token()
     dict_id = get_dictionary_id()
-    
-    result = {
+    return JSONResponse({
         "has_token": bool(token),
         "dictionary_id": dict_id,
         "settings": load_settings()
-    }
-    
-    if token and dict_id:
-        categories = await get_expense_categories(token, dict_id)
-        result["categories"] = categories
-    
-    return JSONResponse(result)
+    })
 
 
 @app.get("/api/set-dictionary-id/{dict_id}")
 async def set_dict_id(dict_id: str):
     save_dictionary_id(dict_id)
     return JSONResponse({"success": True, "dictionary_id": dict_id})
+
+
+@app.get("/api/test-demand/{demand_name}")
+async def test_demand(demand_name: str):
+    """Тест - посмотреть структуру отгрузки"""
+    token = get_any_token()
+    if not token:
+        return JSONResponse({"error": "Нет токена"})
+    
+    demand = await search_demand(token, demand_name)
+    if not demand:
+        return JSONResponse({"error": "Не найдена"})
+    
+    # Получаем полную информацию
+    full = await ms_api("GET", f"/entity/demand/{demand['id']}", token)
+    
+    return JSONResponse({
+        "id": full.get("id"),
+        "name": full.get("name"),
+        "overhead": full.get("overhead"),
+        "description": full.get("description"),
+        "sum": full.get("sum")
+    })
 
 
 # ============== Iframe ==============
@@ -444,7 +398,7 @@ async def widget_demand(request: Request):
 
 @app.get("/")
 async def root():
-    return {"app": "Накладные расходы", "version": "2.0", "dictionary_id": get_dictionary_id()}
+    return {"app": "Накладные расходы", "version": "2.1"}
 
 
 @app.get("/health")
