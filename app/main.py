@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 from pathlib import Path
 
@@ -21,6 +21,14 @@ SETTINGS_FILE = DATA_DIR / "settings.json"
 
 BASE_API_URL = "https://api.moysklad.ru/api/remap/1.2"
 DICTIONARY_NAME = "Статьи накладных расходов"
+
+# Московское время (UTC+3)
+MSK = timezone(timedelta(hours=3))
+
+
+def now_msk() -> datetime:
+    """Текущее время по Москве"""
+    return datetime.now(MSK)
 
 
 # ============== Хранилище ==============
@@ -50,7 +58,7 @@ def save_settings(data): save_json(SETTINGS_FILE, data)
 
 def save_account(account_id: str, account_data: dict):
     data = load_accounts()
-    account_data["updated_at"] = datetime.now().isoformat()
+    account_data["updated_at"] = now_msk().isoformat()
     if "accounts" not in data:
         data["accounts"] = {}
     data["accounts"][account_id] = account_data
@@ -71,7 +79,7 @@ def get_dictionary_id():
 def save_dictionary_id(dict_id: str):
     settings = load_settings()
     settings["expense_dictionary_id"] = dict_id
-    settings["dictionary_saved_at"] = datetime.now().isoformat()
+    settings["dictionary_saved_at"] = now_msk().isoformat()
     save_settings(settings)
 
 
@@ -183,8 +191,8 @@ async def update_demand_overhead(token: str, demand_id: str, add_sum: float, cat
     
     logger.info(f"📊 {demand_name}: {current_overhead/100:.2f} + {add_sum:.2f} = {new_overhead/100:.2f}")
     
-    # Комментарий
-    timestamp = datetime.now().strftime("%d.%m.%Y %H:%M")
+    # Комментарий с московским временем
+    timestamp = now_msk().strftime("%d.%m.%Y %H:%M")
     new_comment = f"[{timestamp}] +{add_sum:.2f} руб - {category}"
     current_desc = demand.get("description") or ""
     new_desc = f"{current_desc}\n{new_comment}".strip()
@@ -236,7 +244,7 @@ async def activate_app(app_id: str, account_id: str, request: Request):
         "account_name": body.get("accountName", ""),
         "status": "active",
         "access_token": token,
-        "activated_at": datetime.now().isoformat()
+        "activated_at": now_msk().isoformat()
     })
     
     if token:
@@ -309,7 +317,7 @@ async def process_expenses(request: Request):
     logger.info("=" * 70)
     logger.info(f"📊 ОБРАБОТКА РАСХОДОВ: {len(expenses)} записей")
     logger.info(f"📁 Категория: {category}")
-    logger.info(f"🕐 Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"🕐 Время (МСК): {now_msk().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("=" * 70)
     
     token = get_any_token()
@@ -363,7 +371,8 @@ async def debug():
     return JSONResponse({
         "has_token": bool(token),
         "dictionary_id": dict_id,
-        "settings": load_settings()
+        "settings": load_settings(),
+        "server_time_msk": now_msk().strftime("%Y-%m-%d %H:%M:%S")
     })
 
 
@@ -408,7 +417,13 @@ async def widget_demand(request: Request):
 
 @app.get("/")
 async def root():
-    return {"app": "Накладные расходы", "version": "2.3", "distribution": "price"}
+    return {
+        "app": "Накладные расходы",
+        "version": "2.4",
+        "distribution": "price",
+        "timezone": "MSK (UTC+3)",
+        "server_time": now_msk().strftime("%Y-%m-%d %H:%M:%S")
+    }
 
 
 @app.get("/health")
