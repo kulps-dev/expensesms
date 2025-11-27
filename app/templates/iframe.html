@@ -3,9 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }}</title>
-    
-    <!-- Стили МойСклад для единообразного вида -->
+    <title>Накладные расходы</title>
     <style>
         * {
             margin: 0;
@@ -14,306 +12,507 @@
         }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            font-size: 14px;
-            line-height: 1.5;
-            color: #333;
-            background-color: #fff;
-            padding: 16px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            padding: 24px;
         }
         
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 32px;
         }
         
         .header {
-            display: flex;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid #e0e0e0;
+            text-align: center;
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid #eee;
         }
         
         .header h1 {
-            font-size: 18px;
-            font-weight: 600;
-            color: #1a1a1a;
-        }
-        
-        .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 500;
-            margin-left: 12px;
-        }
-        
-        .status-active {
-            background-color: #e8f5e9;
-            color: #2e7d32;
-        }
-        
-        .card {
-            background: #f5f5f5;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 16px;
-        }
-        
-        .card-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: #666;
+            font-size: 28px;
+            color: #333;
             margin-bottom: 8px;
         }
         
-        .card-content {
-            font-size: 14px;
-            color: #333;
-        }
-        
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        
-        .info-row:last-child {
-            border-bottom: none;
-        }
-        
-        .info-label {
+        .header p {
             color: #666;
+            font-size: 16px;
         }
         
-        .info-value {
-            font-weight: 500;
+        .input-section {
+            margin-bottom: 24px;
+        }
+        
+        .input-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
             color: #333;
+            font-size: 15px;
         }
         
-        .btn {
-            display: inline-block;
-            padding: 10px 20px;
-            border-radius: 6px;
+        .input-hint {
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 12px;
+        }
+        
+        .paste-area {
+            width: 100%;
+            min-height: 150px;
+            padding: 16px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
             font-size: 14px;
-            font-weight: 500;
-            text-decoration: none;
-            cursor: pointer;
-            border: none;
+            resize: vertical;
             transition: all 0.2s;
         }
         
-        .btn-primary {
-            background-color: #1976d2;
-            color: white;
+        .paste-area:focus {
+            outline: none;
+            border-color: #1976d2;
+            background: #f8fbff;
         }
         
-        .btn-primary:hover {
-            background-color: #1565c0;
+        .paste-area::placeholder {
+            color: #aaa;
         }
         
-        .btn-secondary {
-            background-color: #e0e0e0;
-            color: #333;
+        .preview-section {
+            margin-bottom: 24px;
         }
         
-        .btn-secondary:hover {
-            background-color: #d0d0d0;
-        }
-        
-        .actions {
-            margin-top: 20px;
+        .preview-header {
             display: flex;
-            gap: 12px;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
         }
         
-        .message {
+        .preview-title {
+            font-weight: 600;
+            color: #333;
+            font-size: 15px;
+        }
+        
+        .preview-count {
+            font-size: 13px;
+            color: #666;
+            background: #f0f0f0;
+            padding: 4px 12px;
+            border-radius: 12px;
+        }
+        
+        .preview-table-wrapper {
+            max-height: 350px;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+        }
+        
+        .preview-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .preview-table th {
+            background: #f5f5f5;
             padding: 12px 16px;
-            border-radius: 6px;
+            text-align: left;
+            font-weight: 600;
+            color: #555;
+            border-bottom: 1px solid #e0e0e0;
+            position: sticky;
+            top: 0;
+        }
+        
+        .preview-table td {
+            padding: 10px 16px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .preview-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .number-col {
+            font-family: 'Consolas', monospace;
+            color: #1976d2;
+        }
+        
+        .expense-col {
+            font-weight: 500;
+            color: #2e7d32;
+        }
+        
+        .preview-empty {
+            text-align: center;
+            padding: 48px;
+            color: #999;
+            background: #fafafa;
+            border-radius: 8px;
+            border: 1px dashed #ddd;
+        }
+        
+        .preview-empty-icon {
+            font-size: 48px;
             margin-bottom: 16px;
         }
         
-        .message-info {
-            background-color: #e3f2fd;
-            color: #1565c0;
-            border-left: 4px solid #1976d2;
+        .actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
         }
         
-        .message-success {
-            background-color: #e8f5e9;
+        .btn {
+            padding: 12px 28px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-primary {
+            background: #4caf50;
+            color: white;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            background: #43a047;
+        }
+        
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+        
+        .btn-secondary:hover:not(:disabled) {
+            background: #eeeeee;
+        }
+        
+        .status-message {
+            padding: 14px 18px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+            font-size: 14px;
+        }
+        
+        .status-message.show {
+            display: block;
+        }
+        
+        .status-success {
+            background: #e8f5e9;
             color: #2e7d32;
             border-left: 4px solid #4caf50;
         }
         
-        /* Для настроек */
-        .settings-form {
-            margin-top: 16px;
+        .status-error {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 4px solid #f44336;
         }
         
-        .form-group {
-            margin-bottom: 16px;
+        .status-info {
+            background: #e3f2fd;
+            color: #1565c0;
+            border-left: 4px solid #2196f3;
         }
         
-        .form-label {
-            display: block;
-            font-weight: 500;
-            margin-bottom: 6px;
-            color: #333;
-        }
-        
-        .form-input {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 14px;
-            transition: border-color 0.2s;
-        }
-        
-        .form-input:focus {
-            outline: none;
-            border-color: #1976d2;
-        }
-        
-        .form-hint {
-            font-size: 12px;
+        .loader {
+            display: none;
+            align-items: center;
+            gap: 10px;
             color: #666;
-            margin-top: 4px;
         }
+        
+        .loader.show {
+            display: flex;
+        }
+        
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #e0e0e0;
+            border-top: 2px solid #1976d2;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .row-error {
+            background: #fff8f8 !important;
+        }
+        
+        .row-error td {
+            color: #c62828;
+        }
+        
+        .icon-valid { color: #4caf50; }
+        .icon-invalid { color: #f44336; }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Заголовок -->
         <div class="header">
-            <h1>📱 {{ title }}</h1>
-            <span class="status-badge status-active">Активно</span>
+            <h1>📊 Занести накладные расходы</h1>
+            <p>Скопируйте данные из Excel и вставьте ниже для массового занесения</p>
         </div>
         
-        {% if widget_type == "customer_order" %}
-        <!-- Виджет для заказа покупателя -->
-        <div class="message message-info">
-            ℹ️ Это виджет приложения ExpenseSMS в карточке заказа покупателя
+        <div id="statusMessage" class="status-message"></div>
+        
+        <div class="input-section">
+            <label class="input-label">Вставьте данные из Excel</label>
+            <div class="input-hint">
+                Формат: Номер отгрузки [Tab] Сумма расходов (каждая строка с новой строки)
+            </div>
+            <textarea 
+                id="pasteInput" 
+                class="paste-area" 
+                placeholder="Пример:
+00001    1500.50
+00002    2300
+00003    890.25
+
+Выделите два столбца в Excel и нажмите Ctrl+V здесь"
+            ></textarea>
         </div>
         
-        <div class="card">
-            <div class="card-title">Информация о заказе</div>
-            <div class="card-content">
-                <div class="info-row">
-                    <span class="info-label">Context Key:</span>
-                    <span class="info-value" id="contextKey">{{ context_key or "Не указан" }}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Время загрузки:</span>
-                    <span class="info-value" id="loadTime"></span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Статус SMS:</span>
-                    <span class="info-value">Не отправлено</span>
-                </div>
+        <div class="preview-section">
+            <div class="preview-header">
+                <span class="preview-title">Предпросмотр данных</span>
+                <span id="previewCount" class="preview-count">0 записей</span>
+            </div>
+            
+            <div id="previewEmpty" class="preview-empty">
+                <div class="preview-empty-icon">📋</div>
+                <div>Вставьте данные из Excel для предпросмотра</div>
+            </div>
+            
+            <div id="previewTableWrapper" class="preview-table-wrapper" style="display: none;">
+                <table class="preview-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">#</th>
+                            <th>Номер отгрузки</th>
+                            <th style="width: 200px;">Накладные расходы</th>
+                        </tr>
+                    </thead>
+                    <tbody id="previewBody"></tbody>
+                </table>
             </div>
         </div>
         
         <div class="actions">
-            <button class="btn btn-primary" onclick="sendSMS()">
-                📤 Отправить SMS
-            </button>
-            <button class="btn btn-secondary" onclick="refreshData()">
-                🔄 Обновить
-            </button>
-        </div>
-        
-        {% elif widget_type == "settings" %}
-        <!-- Виджет настроек -->
-        <div class="message message-success">
-            ✅ Приложение успешно установлено и активировано
-        </div>
-        
-        <div class="card">
-            <div class="card-title">Настройки SMS</div>
-            <form class="settings-form" onsubmit="saveSettings(event)">
-                <div class="form-group">
-                    <label class="form-label">API Ключ SMS провайдера</label>
-                    <input type="text" class="form-input" placeholder="Введите API ключ" id="apiKey">
-                    <div class="form-hint">Получите ключ в личном кабинете SMS провайдера</div>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Имя отправителя</label>
-                    <input type="text" class="form-input" placeholder="MyCompany" id="senderName">
-                    <div class="form-hint">Будет отображаться как отправитель SMS</div>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Шаблон сообщения</label>
-                    <textarea class="form-input" rows="3" placeholder="Ваш заказ #{order_number} принят" id="template"></textarea>
-                    <div class="form-hint">Используйте {order_number}, {customer_name}, {total} для подстановки</div>
-                </div>
-                
-                <div class="actions">
-                    <button type="submit" class="btn btn-primary">
-                        💾 Сохранить настройки
-                    </button>
-                </div>
-            </form>
-        </div>
-        
-        {% else %}
-        <!-- Общий виджет -->
-        <div class="card">
-            <div class="card-title">Добро пожаловать!</div>
-            <div class="card-content">
-                <p>Приложение ExpenseSMS успешно загружено.</p>
+            <div id="loader" class="loader">
+                <div class="spinner"></div>
+                <span>Обработка...</span>
             </div>
+            <button id="clearBtn" class="btn btn-secondary" onclick="clearData()">
+                Очистить
+            </button>
+            <button id="processBtn" class="btn btn-primary" onclick="processExpenses()" disabled>
+                ✓ Разнести расходы
+            </button>
         </div>
-        {% endif %}
     </div>
     
     <script>
-        // Устанавливаем время загрузки
-        document.addEventListener('DOMContentLoaded', function() {
-            const loadTimeEl = document.getElementById('loadTime');
-            if (loadTimeEl) {
-                loadTimeEl.textContent = new Date().toLocaleString('ru-RU');
-            }
-        });
+        let parsedData = [];
         
-        // Функция отправки SMS (заглушка)
-        function sendSMS() {
-            alert('📤 Функция отправки SMS будет реализована позже');
-        }
+        const urlParams = new URLSearchParams(window.location.search);
+        const contextKey = urlParams.get('contextKey') || '';
         
-        // Функция обновления данных
-        function refreshData() {
-            location.reload();
-        }
+        const pasteInput = document.getElementById('pasteInput');
+        const previewBody = document.getElementById('previewBody');
+        const previewCount = document.getElementById('previewCount');
+        const previewEmpty = document.getElementById('previewEmpty');
+        const previewTableWrapper = document.getElementById('previewTableWrapper');
+        const processBtn = document.getElementById('processBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const loader = document.getElementById('loader');
+        const statusMessage = document.getElementById('statusMessage');
         
-        // Функция сохранения настроек
-        function saveSettings(event) {
-            event.preventDefault();
+        pasteInput.addEventListener('input', handleInput);
+        pasteInput.addEventListener('paste', () => setTimeout(handleInput, 50));
+        
+        function handleInput() {
+            const text = pasteInput.value.trim();
             
-            const settings = {
-                apiKey: document.getElementById('apiKey').value,
-                senderName: document.getElementById('senderName').value,
-                template: document.getElementById('template').value
-            };
-            
-            console.log('Сохранение настроек:', settings);
-            alert('✅ Настройки сохранены (демо-режим)');
-        }
-        
-        // Взаимодействие с родительским окном МойСклад
-        window.addEventListener('message', function(event) {
-            // Проверяем источник сообщения
-            if (event.origin !== 'https://online.moysklad.ru') {
+            if (!text) {
+                showEmptyState();
                 return;
             }
             
-            console.log('Получено сообщение от МойСклад:', event.data);
-        });
+            parsedData = parseExcelData(text);
+            
+            if (parsedData.length === 0) {
+                showEmptyState();
+                return;
+            }
+            
+            renderPreview();
+        }
+        
+        function parseExcelData(text) {
+            const lines = text.split('\n');
+            const data = [];
+            
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+                
+                let parts = trimmed.split('\t');
+                if (parts.length < 2) parts = trimmed.split(';');
+                if (parts.length < 2) parts = trimmed.split(/\s{2,}/);
+                if (parts.length < 2) {
+                    const match = trimmed.match(/^(.+?)\s+([\d\s,.]+)$/);
+                    if (match) parts = [match[1], match[2]];
+                }
+                
+                if (parts.length >= 2) {
+                    const demandNumber = parts[0].trim();
+                    const expenseStr = parts[1].trim().replace(/\s/g, '').replace(',', '.');
+                    const expense = parseFloat(expenseStr);
+                    
+                    data.push({
+                        demandNumber,
+                        expense: isNaN(expense) ? 0 : expense,
+                        isValid: demandNumber.length > 0 && !isNaN(expense) && expense > 0
+                    });
+                }
+            }
+            
+            return data;
+        }
+        
+        function renderPreview() {
+            previewEmpty.style.display = 'none';
+            previewTableWrapper.style.display = 'block';
+            
+            const validCount = parsedData.filter(d => d.isValid).length;
+            previewCount.textContent = `${parsedData.length} записей (${validCount} корректных)`;
+            
+            previewBody.innerHTML = parsedData.map((item, i) => `
+                <tr class="${item.isValid ? '' : 'row-error'}">
+                    <td>${i + 1}</td>
+                    <td class="number-col">
+                        ${escapeHtml(item.demandNumber)}
+                        <span class="${item.isValid ? 'icon-valid' : 'icon-invalid'}">
+                            ${item.isValid ? '✓' : '✗'}
+                        </span>
+                    </td>
+                    <td class="expense-col">
+                        ${item.expense.toLocaleString('ru-RU', {minimumFractionDigits: 2})} ₽
+                    </td>
+                </tr>
+            `).join('');
+            
+            processBtn.disabled = validCount === 0;
+        }
+        
+        function showEmptyState() {
+            parsedData = [];
+            previewEmpty.style.display = 'block';
+            previewTableWrapper.style.display = 'none';
+            previewCount.textContent = '0 записей';
+            previewBody.innerHTML = '';
+            processBtn.disabled = true;
+        }
+        
+        function clearData() {
+            pasteInput.value = '';
+            showEmptyState();
+            hideStatus();
+        }
+        
+        async function processExpenses() {
+            const validData = parsedData.filter(d => d.isValid);
+            
+            if (validData.length === 0) {
+                showStatus('Нет корректных данных для обработки', 'error');
+                return;
+            }
+            
+            loader.classList.add('show');
+            processBtn.disabled = true;
+            clearBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/process-expenses', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        expenses: validData.map(d => ({
+                            demandNumber: d.demandNumber,
+                            expense: d.expense
+                        })),
+                        contextKey
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    const msg = `✅ Успешно обработано: ${result.processed} отгрузок` +
+                        (result.errors > 0 ? `. Ошибок: ${result.errors}` : '');
+                    showStatus(msg, result.errors > 0 ? 'info' : 'success');
+                    
+                    if (result.errors === 0) {
+                        setTimeout(clearData, 2000);
+                    }
+                } else {
+                    showStatus(`❌ Ошибка: ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`❌ Ошибка соединения: ${error.message}`, 'error');
+            } finally {
+                loader.classList.remove('show');
+                processBtn.disabled = false;
+                clearBtn.disabled = false;
+            }
+        }
+        
+        function showStatus(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.className = `status-message show status-${type}`;
+        }
+        
+        function hideStatus() {
+            statusMessage.className = 'status-message';
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
     </script>
 </body>
 </html>

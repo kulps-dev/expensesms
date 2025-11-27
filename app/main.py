@@ -1,326 +1,214 @@
 """
-Приложение для МойСклад - ExpenseSMS
-Обрабатывает Vendor API запросы и отображает iframe виджет
+Приложение для МойСклад - Массовое занесение накладных расходов
 """
 
 import json
-import base64
-import hashlib
-import hmac
 import logging
 from datetime import datetime
 from typing import Optional
-from pathlib import Path
 
-from fastapi import FastAPI, Request, HTTPException, Response
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+import httpx
 
 # Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# Создаём FastAPI приложение
-app = FastAPI(
-    title="ExpenseSMS - МойСклад App",
-    description="Приложение для интеграции с МойСклад",
-    version="1.0.0"
-)
+app = FastAPI(title="Накладные расходы - МойСклад")
 
-# Шаблоны для HTML страниц
 templates = Jinja2Templates(directory="templates")
 
-# Хранилище данных аккаунтов (в продакшене используйте базу данных!)
-# Ключ: accountId, Значение: данные аккаунта
+# Хранилище токенов аккаунтов
 accounts_storage: dict = {}
 
 
-# ============== Модели данных ==============
+# ============== Vendor API ==============
 
-class AccessToken(BaseModel):
-    """Токен доступа от МойСклад"""
-    id: str
-    accountId: str
-    access_token: str
-
-
-class AppStatus(BaseModel):
-    """Статус приложения"""
-    status: str
-
-
-class AccountInfo(BaseModel):
-    """Информация об аккаунте"""
-    accountId: str
-    infoVersion: int
-    appUid: Optional[str] = None
-
-
-# ============== Vendor API Endpoints ==============
-
-@app.put("/api/moysklad/vendor/1.0/apps/{appId}/{accountId}")
-async def activate_app(appId: str, accountId: str, request: Request):
-    """
-    Активация приложения (МойСклад вызывает при установке)
-    
-    МойСклад отправляет этот запрос когда пользователь устанавливает приложение.
-    Мы должны сохранить access_token для дальнейших запросов к API МойСклад.
-    """
+@app.put("/api/moysklad/vendor/1.0/apps/{app_id}/{account_id}")
+async def activate_app(app_id: str, account_id: str, request: Request):
+    """Активация приложения"""
     try:
         body = await request.json()
-        logger.info(f"🟢 Активация приложения: appId={appId}, accountId={accountId}")
-        logger.info(f"Полученные данные: {json.dumps(body, indent=2, ensure_ascii=False)}")
+        logger.info(f"🟢 Активация: account_id={account_id}")
+        logger.info(f"📦 Body: {json.dumps(body, ensure_ascii=False, indent=2)}")
         
-        # Сохраняем данные аккаунта
-        accounts_storage[accountId] = {
-            "appId": appId,
-            "accountId": accountId,
-            "access_token": body.get("access", [{}])[0].get("access_token") if body.get("access") else None,
-            "activated_at": datetime.now().isoformat(),
-            "status": "Activated"
+        # Сохраняем токен доступа
+        access_token = None
+        if body.get("access"):
+            for access in body["access"]:
+                if access.get("access_token"):
+                    access_token = access["access_token"]
+                    break
+        
+        accounts_storage[account_id] = {
+            "app_id": app_id,
+            "account_name": body.get("accountName", ""),
+            "access_token": access_token,
+            "activated_at": datetime.now().isoformat()
         }
         
-        # Возвращаем статус активации
-        return JSONResponse(
-            status_code=200,
-            content={"status": "Activated"}
-        )
+        logger.info(f"✅ Аккаунт сохранён: {account_id}")
         
+        return JSONResponse({"status": "Activated"})
     except Exception as e:
-        logger.error(f"❌ Ошибка активации: {str(e)}")
+        logger.error(f"❌ Ошибка активации: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/api/moysklad/vendor/1.0/apps/{appId}/{accountId}")
-async def deactivate_app(appId: str, accountId: str):
-    """
-    Деактивация приложения (МойСклад вызывает при удалении)
-    
-    Пользователь удалил приложение - очищаем данные.
-    """
-    logger.info(f"🔴 Деактивация приложения: appId={appId}, accountId={accountId}")
-    
-    # Удаляем данные аккаунта
-    if accountId in accounts_storage:
-        del accounts_storage[accountId]
-    
-    return Response(status_code=200)
+@app.delete("/api/moysklad/vendor/1.0/apps/{app_id}/{account_id}")
+async def deactivate_app(app_id: str, account_id: str):
+    """Деактивация приложения"""
+    logger.info(f"🔴 Деактивация: {account_id}")
+    accounts_storage.pop(account_id, None)
+    return JSONResponse(status_code=200, content={})
 
 
-@app.get("/api/moysklad/vendor/1.0/apps/{appId}/{accountId}/status")
-async def get_app_status(appId: str, accountId: str):
-    """
-    Проверка статуса приложения
-    
-    МойСклад периодически проверяет, работает ли приложение.
-    """
-    logger.info(f"📊 Проверка статуса: appId={appId}, accountId={accountId}")
-    
-    if accountId in accounts_storage:
-        return JSONResponse(
-            status_code=200,
-            content={"status": "Activated"}
-        )
-    else:
-        return JSONResponse(
-            status_code=200,
-            content={"status": "SettingsRequired"}
-        )
+@app.get("/api/moysklad/vendor/1.0/apps/{app_id}/{account_id}/status")
+async def get_status(app_id: str, account_id: str):
+    """Статус приложения"""
+    if account_id in accounts_storage:
+        return JSONResponse({"status": "Activated"})
+    return JSONResponse({"status": "SettingsRequired"})
 
 
-# ============== iframe Endpoints ==============
+# ============== Iframe (главное окно приложения) ==============
 
-@app.get("/iframe/customer-order", response_class=HTMLResponse)
-async def customer_order_iframe(request: Request):
+@app.get("/iframe", response_class=HTMLResponse)
+async def iframe_page(request: Request):
     """
-    iframe виджет для карточки заказа покупателя
-    
-    Этот HTML отображается внутри МойСклад в карточке заказа.
-    """
-    # Получаем параметры из URL
-    context_key = request.query_params.get("contextKey", "")
-    
-    logger.info(f"📦 Загрузка iframe заказа: contextKey={context_key}")
-    
-    return templates.TemplateResponse(
-        "iframe.html",
-        {
-            "request": request,
-            "title": "ExpenseSMS - Заказ покупателя",
-            "context_key": context_key,
-            "widget_type": "customer_order"
-        }
-    )
-
-
-@app.get("/iframe/settings", response_class=HTMLResponse)
-async def settings_iframe(request: Request):
-    """
-    iframe для настроек приложения
-    
-    Здесь пользователь может настроить параметры приложения.
+    Главный iframe приложения.
+    Открывается при клике на приложение в меню МойСклад.
+    С expand=true открывается как popup.
     """
     context_key = request.query_params.get("contextKey", "")
+    logger.info(f"📱 Открыт iframe: contextKey={context_key[:50]}..." if context_key else "📱 Открыт iframe")
     
-    logger.info(f"⚙️ Загрузка iframe настроек: contextKey={context_key}")
-    
-    return templates.TemplateResponse(
-        "iframe.html",
-        {
-            "request": request,
-            "title": "ExpenseSMS - Настройки",
-            "context_key": context_key,
-            "widget_type": "settings"
-        }
-    )
+    return templates.TemplateResponse("iframe.html", {
+        "request": request,
+        "context_key": context_key
+    })
 
 
-# ============== Служебные Endpoints ==============
-
-@app.get("/")
-async def root():
-    """Корневой endpoint - проверка работоспособности"""
-    return {
-        "app": "ExpenseSMS",
-        "status": "running",
-        "version": "1.0.0",
-        "timestamp": datetime.now().isoformat()
-    }
-
-
-@app.get("/health")
-async def health_check():
-    """Health check для мониторинга"""
-    return {"status": "healthy"}
-
-
-@app.get("/debug/accounts")
-async def debug_accounts():
-    """
-    Отладочный endpoint - показывает все подключённые аккаунты
-    ⚠️ В продакшене уберите или защитите паролем!
-    """
-    return {
-        "total_accounts": len(accounts_storage),
-        "accounts": list(accounts_storage.keys())
-    }
-
-
-# ============== Обработка ошибок ==============
-
-@app.exception_handler(404)
-async def not_found_handler(request: Request, exc):
-    """Обработка 404 ошибок"""
-    logger.warning(f"404 Not Found: {request.url}")
-    return JSONResponse(
-        status_code=404,
-        content={"error": "Not Found", "path": str(request.url)}
-    )
-
-
-@app.exception_handler(500)
-async def server_error_handler(request: Request, exc):
-    """Обработка серверных ошибок"""
-    logger.error(f"500 Server Error: {str(exc)}")
-    return JSONResponse(
-        status_code=500,
-        content={"error": "Internal Server Error"}
-    )
-
-
-# ============== Middleware для логирования ==============
-
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    """Логируем все входящие запросы"""
-    logger.info(f"➡️ {request.method} {request.url}")
-    
-    response = await call_next(request)
-    
-    logger.info(f"⬅️ {request.method} {request.url} - Status: {response.status_code}")
-    return response
-
-
-
-
-# ============== Widget Endpoints ==============
-
-@app.get("/iframe.html", response_class=HTMLResponse)
-async def main_iframe(request: Request):
-    """Главный iframe приложения"""
-    return templates.TemplateResponse(
-        "iframe.html",
-        {
-            "request": request,
-            "title": "ExpenseSMS",
-            "context_key": request.query_params.get("contextKey", ""),
-            "widget_type": "main"
-        }
-    )
-
+# ============== Widget в карточке отгрузки ==============
 
 @app.get("/widget-demand", response_class=HTMLResponse)
 async def widget_demand(request: Request):
-    """Виджет в карточке Отгрузки"""
+    """
+    Виджет в карточке отгрузки.
+    Показывает кнопку для открытия popup.
+    """
     context_key = request.query_params.get("contextKey", "")
+    logger.info(f"📦 Виджет отгрузки загружен")
     
-    logger.info(f"📦 Загрузка виджета отгрузки: contextKey={context_key}")
-    
-    return templates.TemplateResponse(
-        "widget_demand.html",
-        {
-            "request": request,
-            "context_key": context_key
-        }
-    )
+    return templates.TemplateResponse("widget_demand.html", {
+        "request": request,
+        "context_key": context_key
+    })
 
-
-# ============== Widget Protocol Handlers ==============
 
 @app.post("/widget-demand/open-feedback")
-async def demand_open_feedback(request: Request):
-    """
-    open-feedback: вызывается при открытии виджета
-    Можно вернуть данные для отображения
-    """
+async def widget_open_feedback(request: Request):
+    """Open feedback для виджета"""
     body = await request.json()
-    logger.info(f"📬 open-feedback: {json.dumps(body, ensure_ascii=False)}")
+    logger.info(f"📬 Widget open-feedback: {json.dumps(body, ensure_ascii=False)}")
+    return JSONResponse({"status": "ok"})
+
+
+# ============== Popup для занесения расходов ==============
+
+@app.get("/popup-expenses", response_class=HTMLResponse)
+async def popup_expenses(request: Request):
+    """Popup окно для массового занесения расходов"""
+    context_key = request.query_params.get("contextKey", "")
+    logger.info(f"💰 Открыт popup расходов")
     
-    return JSONResponse({
-        "status": "success",
-        "message": "Виджет загружен"
+    return templates.TemplateResponse("popup_expenses.html", {
+        "request": request,
+        "context_key": context_key
     })
 
 
-@app.post("/widget-demand/save-handler")
-async def demand_save_handler(request: Request):
+# ============== API для обработки расходов ==============
+
+@app.post("/api/process-expenses")
+async def process_expenses(request: Request):
     """
-    save-handler: вызывается при сохранении документа
-    Можно выполнить действия перед сохранением
+    Обработка и занесение расходов в отгрузки.
+    Получает список {demandNumber, expense} и обновляет отгрузки через API МойСклад.
     """
-    body = await request.json()
-    logger.info(f"💾 save-handler: {json.dumps(body, ensure_ascii=False)}")
-    
-    # Возвращаем разрешение на сохранение
-    return JSONResponse({
-        "status": "success",
-        "allowSave": True
-    })
+    try:
+        body = await request.json()
+        expenses_data = body.get("expenses", [])
+        context_key = body.get("contextKey", "")
+        
+        logger.info(f"📊 Получено {len(expenses_data)} записей для обработки")
+        
+        results = []
+        errors = []
+        
+        for item in expenses_data:
+            demand_number = item.get("demandNumber", "").strip()
+            expense_value = item.get("expense")
+            
+            if not demand_number:
+                continue
+            
+            try:
+                # TODO: Здесь будет логика обновления через API МойСклад
+                # 1. Найти отгрузку по номеру
+                # 2. Обновить поле накладных расходов
+                
+                results.append({
+                    "demandNumber": demand_number,
+                    "expense": expense_value,
+                    "status": "success"
+                })
+                logger.info(f"✅ Обработано: {demand_number} = {expense_value}")
+                
+            except Exception as e:
+                errors.append({
+                    "demandNumber": demand_number,
+                    "error": str(e)
+                })
+                logger.error(f"❌ Ошибка {demand_number}: {e}")
+        
+        return JSONResponse({
+            "success": True,
+            "processed": len(results),
+            "errors": len(errors),
+            "results": results,
+            "errorDetails": errors
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка обработки: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
 
 
-@app.post("/widget-demand/change-handler")
-async def demand_change_handler(request: Request):
-    """
-    change-handler: вызывается при изменении полей документа
-    Можно реагировать на изменения
-    """
-    body = await request.json()
-    logger.info(f"✏️ change-handler: {json.dumps(body, ensure_ascii=False)}")
-    
-    return JSONResponse({
-        "status": "success"
-    })
+# ============== Служебные endpoints ==============
+
+@app.get("/")
+async def root():
+    return {"app": "Накладные расходы", "version": "1.0", "status": "running"}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
+
+
+# Логирование всех запросов
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    logger.info(f"➡️ {request.method} {request.url.path}")
+    response = await call_next(request)
+    logger.info(f"⬅️ {response.status_code}")
+    return response

@@ -2,8 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ExpenseSMS - Отгрузка</title>
+    <title>Накладные расходы</title>
     <style>
         * {
             margin: 0;
@@ -14,152 +13,82 @@
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             font-size: 14px;
-            padding: 12px 16px;
+            padding: 10px 16px;
             background: #fff;
         }
         
-        .widget-container {
+        .widget {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 16px;
         }
         
         .widget-info {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
         }
         
         .widget-icon {
-            font-size: 24px;
+            font-size: 20px;
         }
         
-        .widget-title {
+        .widget-label {
+            color: #666;
+        }
+        
+        .widget-value {
             font-weight: 600;
             color: #333;
         }
         
-        .widget-status {
-            font-size: 12px;
-            color: #666;
-        }
-        
-        .status-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 11px;
-            font-weight: 500;
-        }
-        
-        .status-pending {
-            background: #fff3e0;
-            color: #e65100;
-        }
-        
-        .status-sent {
-            background: #e8f5e9;
-            color: #2e7d32;
-        }
-        
         .btn {
-            padding: 8px 16px;
+            padding: 6px 14px;
             border-radius: 6px;
             font-size: 13px;
             font-weight: 500;
             cursor: pointer;
             border: none;
-            transition: all 0.2s;
-        }
-        
-        .btn-primary {
             background: #1976d2;
             color: white;
+            transition: background 0.2s;
         }
         
-        .btn-primary:hover {
+        .btn:hover {
             background: #1565c0;
-        }
-        
-        .btn-secondary {
-            background: #f5f5f5;
-            color: #333;
-            border: 1px solid #ddd;
-        }
-        
-        .btn-secondary:hover {
-            background: #eeeeee;
-        }
-        
-        .actions {
-            display: flex;
-            gap: 8px;
         }
     </style>
 </head>
 <body>
-    <div class="widget-container">
+    <div class="widget">
         <div class="widget-info">
-            <span class="widget-icon">📱</span>
-            <div>
-                <div class="widget-title">ExpenseSMS</div>
-                <div class="widget-status">
-                    SMS статус: <span class="status-badge status-pending">Не отправлено</span>
-                </div>
-            </div>
+            <span class="widget-icon">📊</span>
+            <span class="widget-label">Накладные расходы:</span>
+            <span class="widget-value" id="expenseValue">—</span>
         </div>
-        
-        <div class="actions">
-            <button class="btn btn-primary" onclick="sendSMS()">
-                Отправить SMS
-            </button>
-            <button class="btn btn-secondary" onclick="showHistory()">
-                История
-            </button>
-        </div>
+        <button class="btn" onclick="openExpensesPopup()">
+            Занести расходы
+        </button>
     </div>
     
     <script>
-        // Получаем contextKey из URL
         const urlParams = new URLSearchParams(window.location.search);
-        const contextKey = urlParams.get('contextKey');
+        const contextKey = urlParams.get('contextKey') || '';
         
-        console.log('Widget loaded, contextKey:', contextKey);
-        
-        function sendSMS() {
-            alert('Отправка SMS...\nContextKey: ' + contextKey);
-            // Здесь будет логика отправки SMS
-        }
-        
-        function showHistory() {
-            alert('История SMS для этой отгрузки');
-            // Здесь будет логика показа истории
+        function openExpensesPopup() {
+            // Отправляем сообщение родительскому окну МойСклад
+            // для открытия iframe приложения в popup режиме
+            window.parent.postMessage({
+                name: 'openApplication',
+                args: {
+                    contextKey: contextKey
+                }
+            }, '*');
         }
         
         // Слушаем сообщения от МойСклад
         window.addEventListener('message', function(event) {
-            if (event.origin !== 'https://online.moysklad.ru') return;
-            
-            console.log('Message from MoySklad:', event.data);
-            
-            // Обработка различных событий
-            if (event.data.name === 'Open') {
-                console.log('Widget opened with object:', event.data.objectId);
-            }
-            
-            if (event.data.name === 'Change') {
-                console.log('Document changed:', event.data.changedFields);
-            }
-            
-            if (event.data.name === 'Save') {
-                console.log('Document saving...');
-                // Отправляем подтверждение сохранения
-                window.parent.postMessage({
-                    name: 'SaveHandled',
-                    result: { success: true }
-                }, 'https://online.moysklad.ru');
-            }
+            console.log('Widget message:', event.data);
         });
     </script>
 </body>
