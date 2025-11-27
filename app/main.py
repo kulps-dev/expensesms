@@ -86,7 +86,6 @@ async def ms_api(method: str, endpoint: str, token: str, data: dict = None) -> d
     }
     
     async with httpx.AsyncClient(timeout=30.0) as client:
-        # Логируем запрос
         logger.info(f"🔵 REQUEST: {method} {url}")
         if data:
             logger.info(f"🔵 BODY: {json.dumps(data, ensure_ascii=False)}")
@@ -100,20 +99,14 @@ async def ms_api(method: str, endpoint: str, token: str, data: dict = None) -> d
         else:
             return {"_error": "Unknown method"}
         
-        # Логируем ответ
         logger.info(f"🟢 RESPONSE: {resp.status_code}")
         
         try:
             result = resp.json()
-            # Логируем часть ответа
             resp_str = json.dumps(result, ensure_ascii=False, default=str)
-            if len(resp_str) > 500:
-                logger.info(f"🟢 BODY: {resp_str[:500]}...")
-            else:
-                logger.info(f"🟢 BODY: {resp_str}")
+            logger.info(f"🟢 BODY: {resp_str[:500]}...")
         except:
             result = {"_text": resp.text[:1000]}
-            logger.info(f"🟢 TEXT: {resp.text[:500]}")
         
         result["_status"] = resp.status_code
         return result
@@ -173,7 +166,7 @@ async def search_demand(token: str, name: str):
 
 
 async def update_demand_overhead(token: str, demand_id: str, add_sum: float, category: str) -> dict:
-    """Обновить накладные расходы"""
+    """Обновить накладные расходы - распределение по цене"""
     demand = await ms_api("GET", f"/entity/demand/{demand_id}", token)
     if demand.get("_status") != 200:
         return {"success": False, "error": "Отгрузка не найдена"}
@@ -196,12 +189,12 @@ async def update_demand_overhead(token: str, demand_id: str, add_sum: float, cat
     current_desc = demand.get("description") or ""
     new_desc = f"{current_desc}\n{new_comment}".strip()
     
-    # Обновляем с правильным форматом overhead
+    # Обновляем - распределение по ЦЕНЕ
     update_data = {
         "description": new_desc,
         "overhead": {
             "sum": new_overhead,
-            "distribution": "weight"
+            "distribution": "price"
         }
     }
     
@@ -209,7 +202,6 @@ async def update_demand_overhead(token: str, demand_id: str, add_sum: float, cat
     result = await ms_api("PUT", f"/entity/demand/{demand_id}", token, update_data)
     
     if result.get("_status") == 200:
-        # Проверяем что overhead записался
         result_overhead = result.get("overhead")
         logger.info(f"✅ Результат overhead: {result_overhead}")
         
@@ -317,7 +309,7 @@ async def process_expenses(request: Request):
     logger.info("=" * 70)
     logger.info(f"📊 ОБРАБОТКА РАСХОДОВ: {len(expenses)} записей")
     logger.info(f"📁 Категория: {category}")
-    logger.info(f"🕐 Время (МСК): {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"🕐 Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("=" * 70)
     
     token = get_any_token()
@@ -383,7 +375,6 @@ async def set_dict_id(dict_id: str):
 
 @app.get("/api/test-demand/{demand_name}")
 async def test_demand(demand_name: str):
-    """Тест - посмотреть структуру отгрузки"""
     token = get_any_token()
     if not token:
         return JSONResponse({"error": "Нет токена"})
@@ -417,7 +408,7 @@ async def widget_demand(request: Request):
 
 @app.get("/")
 async def root():
-    return {"app": "Накладные расходы", "version": "2.2"}
+    return {"app": "Накладные расходы", "version": "2.3", "distribution": "price"}
 
 
 @app.get("/health")
