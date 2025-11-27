@@ -1,7 +1,4 @@
-version: '3.8'
-
 services:
-  # Nginx - обрабатывает HTTPS и проксирует запросы к приложению
   nginx:
     image: nginx:alpine
     container_name: expensesms-nginx
@@ -18,7 +15,6 @@ services:
     networks:
       - expensesms-network
 
-  # Python приложение
   app:
     build: ./app
     container_name: expensesms-app
@@ -29,11 +25,11 @@ services:
     environment:
       - APP_ENV=production
       - PYTHONUNBUFFERED=1
+      - ROOT_PATH=/expensesms
     restart: unless-stopped
     networks:
       - expensesms-network
 
-  # Certbot для SSL сертификатов
   certbot:
     image: certbot/certbot
     container_name: expensesms-certbot
