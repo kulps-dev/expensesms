@@ -243,3 +243,84 @@ async def log_requests(request: Request, call_next):
     
     logger.info(f"⬅️ {request.method} {request.url} - Status: {response.status_code}")
     return response
+
+
+
+
+# ============== Widget Endpoints ==============
+
+@app.get("/iframe.html", response_class=HTMLResponse)
+async def main_iframe(request: Request):
+    """Главный iframe приложения"""
+    return templates.TemplateResponse(
+        "iframe.html",
+        {
+            "request": request,
+            "title": "ExpenseSMS",
+            "context_key": request.query_params.get("contextKey", ""),
+            "widget_type": "main"
+        }
+    )
+
+
+@app.get("/widget-demand", response_class=HTMLResponse)
+async def widget_demand(request: Request):
+    """Виджет в карточке Отгрузки"""
+    context_key = request.query_params.get("contextKey", "")
+    
+    logger.info(f"📦 Загрузка виджета отгрузки: contextKey={context_key}")
+    
+    return templates.TemplateResponse(
+        "widget_demand.html",
+        {
+            "request": request,
+            "context_key": context_key
+        }
+    )
+
+
+# ============== Widget Protocol Handlers ==============
+
+@app.post("/widget-demand/open-feedback")
+async def demand_open_feedback(request: Request):
+    """
+    open-feedback: вызывается при открытии виджета
+    Можно вернуть данные для отображения
+    """
+    body = await request.json()
+    logger.info(f"📬 open-feedback: {json.dumps(body, ensure_ascii=False)}")
+    
+    return JSONResponse({
+        "status": "success",
+        "message": "Виджет загружен"
+    })
+
+
+@app.post("/widget-demand/save-handler")
+async def demand_save_handler(request: Request):
+    """
+    save-handler: вызывается при сохранении документа
+    Можно выполнить действия перед сохранением
+    """
+    body = await request.json()
+    logger.info(f"💾 save-handler: {json.dumps(body, ensure_ascii=False)}")
+    
+    # Возвращаем разрешение на сохранение
+    return JSONResponse({
+        "status": "success",
+        "allowSave": True
+    })
+
+
+@app.post("/widget-demand/change-handler")
+async def demand_change_handler(request: Request):
+    """
+    change-handler: вызывается при изменении полей документа
+    Можно реагировать на изменения
+    """
+    body = await request.json()
+    logger.info(f"✏️ change-handler: {json.dumps(body, ensure_ascii=False)}")
+    
+    return JSONResponse({
+        "status": "success"
+    })
