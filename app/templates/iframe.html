@@ -49,6 +49,20 @@
             margin-bottom: 24px;
         }
         
+        .input-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+        
+        .input-group {
+            flex: 1;
+        }
+        
+        .input-group.small {
+            flex: 0 0 300px;
+        }
+        
         .input-label {
             display: block;
             font-weight: 600;
@@ -61,6 +75,25 @@
             font-size: 13px;
             color: #888;
             margin-bottom: 12px;
+        }
+        
+        .text-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.2s;
+        }
+        
+        .text-input:focus {
+            outline: none;
+            border-color: #1976d2;
+            background: #f8fbff;
+        }
+        
+        .text-input::placeholder {
+            color: #aaa;
         }
         
         .paste-area {
@@ -150,6 +183,11 @@
         .expense-col {
             font-weight: 500;
             color: #2e7d32;
+        }
+        
+        .comment-col {
+            color: #666;
+            font-style: italic;
         }
         
         .preview-empty {
@@ -276,6 +314,16 @@
         
         .icon-valid { color: #4caf50; }
         .icon-invalid { color: #f44336; }
+        
+        .expense-tag {
+            display: inline-block;
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
     </style>
 </head>
 <body>
@@ -286,6 +334,23 @@
         </div>
         
         <div id="statusMessage" class="status-message"></div>
+        
+        <!-- Поле статьи расходов -->
+        <div class="input-section">
+            <div class="input-row">
+                <div class="input-group small">
+                    <label class="input-label">📝 Статья расходов</label>
+                    <input 
+                        type="text" 
+                        id="expenseCategory" 
+                        class="text-input" 
+                        placeholder="Например: Доставка"
+                        value="Доставка"
+                    >
+                    <div class="input-hint">Будет добавлено в комментарий к отгрузке</div>
+                </div>
+            </div>
+        </div>
         
         <div class="input-section">
             <label class="input-label">Вставьте данные из Excel</label>
@@ -319,9 +384,10 @@
                 <table class="preview-table">
                     <thead>
                         <tr>
-                            <th style="width: 60px;">#</th>
+                            <th style="width: 50px;">#</th>
                             <th>Номер отгрузки</th>
-                            <th style="width: 200px;">Накладные расходы</th>
+                            <th style="width: 180px;">Сумма</th>
+                            <th>Комментарий</th>
                         </tr>
                     </thead>
                     <tbody id="previewBody"></tbody>
@@ -350,6 +416,7 @@
         const contextKey = urlParams.get('contextKey') || '';
         
         const pasteInput = document.getElementById('pasteInput');
+        const expenseCategoryInput = document.getElementById('expenseCategory');
         const previewBody = document.getElementById('previewBody');
         const previewCount = document.getElementById('previewCount');
         const previewEmpty = document.getElementById('previewEmpty');
@@ -361,6 +428,7 @@
         
         pasteInput.addEventListener('input', handleInput);
         pasteInput.addEventListener('paste', () => setTimeout(handleInput, 50));
+        expenseCategoryInput.addEventListener('input', renderPreview);
         
         function handleInput() {
             const text = pasteInput.value.trim();
@@ -412,7 +480,21 @@
             return data;
         }
         
+        function getExpenseCategory() {
+            return expenseCategoryInput.value.trim() || 'Накладные расходы';
+        }
+        
+        function formatComment(expense) {
+            const category = getExpenseCategory();
+            return expense.toLocaleString('ru-RU', {minimumFractionDigits: 2}) + ' руб - ' + category;
+        }
+        
         function renderPreview() {
+            if (parsedData.length === 0) {
+                showEmptyState();
+                return;
+            }
+            
             previewEmpty.style.display = 'none';
             previewTableWrapper.style.display = 'block';
             
@@ -430,6 +512,9 @@
                     </td>
                     <td class="expense-col">
                         ${item.expense.toLocaleString('ru-RU', {minimumFractionDigits: 2})} ₽
+                    </td>
+                    <td class="comment-col">
+                        ${item.isValid ? escapeHtml(formatComment(item.expense)) : '—'}
                     </td>
                 </tr>
             `).join('');
@@ -454,6 +539,7 @@
         
         async function processExpenses() {
             const validData = parsedData.filter(d => d.isValid);
+            const category = getExpenseCategory();
             
             if (validData.length === 0) {
                 showStatus('Нет корректных данных для обработки', 'error');
@@ -471,9 +557,11 @@
                     body: JSON.stringify({
                         expenses: validData.map(d => ({
                             demandNumber: d.demandNumber,
-                            expense: d.expense
+                            expense: d.expense,
+                            comment: formatComment(d.expense)
                         })),
-                        contextKey
+                        category: category,
+                        contextKey: contextKey
                     })
                 });
                 
