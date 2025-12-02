@@ -18,14 +18,33 @@
     </div>
     <script>
         var contextKey = new URLSearchParams(window.location.search).get('contextKey') || '';
+        var correlationId = null;
+        
+        window.addEventListener('message', function(e) {
+            var data = e.data;
+            if (!data || typeof data !== 'object') return;
+            
+            if (data.name === 'Open') {
+                correlationId = data.messageId;
+                window.parent.postMessage({
+                    name: 'OpenFeedback',
+                    correlationId: correlationId
+                }, 'https://online.moysklad.ru');
+            }
+        });
         
         document.getElementById('openBtn').addEventListener('click', function() {
+            // Исправленный URL с /expensesms
             var url = 'https://kulps.ru/expensesms/iframe?contextKey=' + encodeURIComponent(contextKey);
-            var w = 900, h = 700;
+            var w = 900;
+            var h = 700;
             var left = (screen.width - w) / 2;
             var top = (screen.height - h) / 2;
-            window.open(url, 'ExpensesPopup', 'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',scrollbars=yes,resizable=yes');
+            
+            window.open(url, 'ExpensesPopup', 
+                'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + 
+                ',scrollbars=yes,resizable=yes,toolbar=no,menubar=no');
         });
     </script>
 </body>
-</html>ы
+</html>
