@@ -7,10 +7,7 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
-        html, body {
-            height: 100%;
-            overflow-y: auto;
-        }
+        html, body { height: 100%; overflow-y: auto; }
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -39,31 +36,18 @@
         .header h1 { font-size: 28px; color: #333; margin-bottom: 8px; }
         .header p { color: #666; font-size: 16px; }
         
-        /* Информация об аккаунте */
-        .account-info {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
+        .account-badge {
+            display: inline-block;
             margin-top: 12px;
-            padding: 8px 16px;
-            background: #e3f2fd;
+            padding: 6px 16px;
+            background: #e8f5e9;
+            color: #2e7d32;
             border-radius: 20px;
             font-size: 13px;
-            color: #1565c0;
         }
         
-        .account-info.error {
-            background: #ffebee;
-            color: #c62828;
-        }
-        
-        .account-info.loading {
-            background: #fff3e0;
-            color: #e65100;
-        }
-        
-        .account-info-icon { font-size: 16px; }
+        .account-badge.error { background: #ffebee; color: #c62828; }
+        .account-badge.loading { background: #fff3e0; color: #e65100; }
         
         .input-section { margin-bottom: 24px; }
         
@@ -75,11 +59,7 @@
             font-size: 15px;
         }
         
-        .input-hint {
-            font-size: 13px;
-            color: #888;
-            margin-bottom: 12px;
-        }
+        .input-hint { font-size: 13px; color: #888; margin-bottom: 12px; }
         
         .category-wrapper {
             display: flex;
@@ -103,10 +83,7 @@
             transition: all 0.2s;
         }
         
-        .category-input:focus {
-            outline: none;
-            border-color: #1976d2;
-        }
+        .category-input:focus { outline: none; border-color: #1976d2; }
         
         .category-dropdown {
             position: absolute;
@@ -132,13 +109,8 @@
         }
         
         .category-option:hover { background: #f5f5f5; }
-        .category-option.selected { background: #e3f2fd; color: #1976d2; }
         
-        .category-empty {
-            padding: 16px;
-            text-align: center;
-            color: #999;
-        }
+        .category-empty { padding: 16px; text-align: center; color: #999; }
         
         .btn-add {
             width: 44px;
@@ -155,15 +127,8 @@
             justify-content: center;
         }
         
-        .btn-add:hover {
-            background: #4caf50;
-            color: #fff;
-        }
-        
-        .btn-add:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
+        .btn-add:hover { background: #4caf50; color: #fff; }
+        .btn-add:disabled { opacity: 0.5; cursor: not-allowed; }
         
         .paste-area {
             width: 100%;
@@ -177,12 +142,7 @@
             transition: all 0.2s;
         }
         
-        .paste-area:focus {
-            outline: none;
-            border-color: #1976d2;
-            background: #f8fbff;
-        }
-        
+        .paste-area:focus { outline: none; border-color: #1976d2; background: #f8fbff; }
         .paste-area::placeholder { color: #aaa; }
         
         .preview-section { margin-bottom: 24px; }
@@ -222,14 +182,9 @@
             border-bottom: 1px solid #e0e0e0;
             position: sticky;
             top: 0;
-            z-index: 10;
         }
         
-        .preview-table td {
-            padding: 10px 16px;
-            border-bottom: 1px solid #f0f0f0;
-        }
-        
+        .preview-table td { padding: 10px 16px; border-bottom: 1px solid #f0f0f0; }
         .preview-table tr:hover { background: #f8f9fa; }
         
         .number-col { font-family: 'Consolas', monospace; color: #1976d2; }
@@ -296,111 +251,22 @@
             animation: spin 0.8s linear infinite;
         }
         
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
         .row-error { background: #fff8f8 !important; }
         .row-error td { color: #c62828; }
         .icon-valid { color: #4caf50; }
         .icon-invalid { color: #f44336; }
         
-        .loading-categories {
-            padding: 16px;
-            text-align: center;
-            color: #666;
-        }
-        
-        /* Блокировка интерфейса при ошибке аккаунта */
-        .app-blocked {
-            pointer-events: none;
-            opacity: 0.5;
-        }
-        
-        .account-select-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        }
-        
-        .account-select-content {
-            background: #fff;
-            padding: 32px;
-            border-radius: 12px;
-            max-width: 400px;
-            width: 90%;
-        }
-        
-        .account-select-title {
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 16px;
-            color: #333;
-        }
-        
-        .account-option {
-            padding: 12px 16px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            margin-bottom: 8px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .account-option:hover {
-            border-color: #1976d2;
-            background: #e3f2fd;
-        }
-        
-        .account-option-name {
-            font-weight: 500;
-            color: #333;
-        }
-        
-        .account-option-id {
-            font-size: 12px;
-            color: #888;
-            margin-top: 4px;
-        }
-        
-        /* Кастомный скроллбар */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        
-        ::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-            background: #c1c1c1;
-            border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: #a1a1a1;
-        }
+        .app-disabled { opacity: 0.5; pointer-events: none; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>📊 Занести накладные расходы</h1>
-            <p>Скопируйте данные из Excel и вставьте ниже для массового занесения</p>
-            <div id="accountInfo" class="account-info loading">
-                <span class="account-info-icon">⏳</span>
-                <span id="accountName">Определение аккаунта...</span>
-            </div>
+            <p>Скопируйте данные из Excel и вставьте ниже</p>
+            <div id="accountBadge" class="account-badge loading">Подключение...</div>
         </div>
         
         <div id="statusMessage" class="status-message"></div>
@@ -410,48 +276,33 @@
                 <label class="input-label">📝 Статья расходов</label>
                 <div class="category-wrapper">
                     <div class="category-select-wrapper">
-                        <input 
-                            type="text" 
-                            id="categoryInput" 
-                            class="category-input" 
-                            placeholder="Выберите или введите статью..."
-                            autocomplete="off"
-                        >
-                        <div id="categoryDropdown" class="category-dropdown">
-                            <div class="loading-categories">Загрузка...</div>
-                        </div>
+                        <input type="text" id="categoryInput" class="category-input" 
+                               placeholder="Выберите или введите статью..." autocomplete="off">
+                        <div id="categoryDropdown" class="category-dropdown"></div>
                     </div>
-                    <button id="addCategoryBtn" class="btn-add" title="Добавить статью в справочник">+</button>
+                    <button id="addCategoryBtn" class="btn-add" title="Добавить статью">+</button>
                 </div>
-                <div class="input-hint">Выберите из списка или введите новую и нажмите + для сохранения</div>
+                <div class="input-hint">Выберите из списка или введите новую и нажмите +</div>
             </div>
             
             <div class="input-section">
                 <label class="input-label">Вставьте данные из Excel</label>
-                <div class="input-hint">
-                    Формат: Номер отгрузки [Tab] Сумма расходов (каждая строка с новой строки)
-                </div>
-                <textarea 
-                    id="pasteInput" 
-                    class="paste-area" 
-                    placeholder="Пример:
+                <div class="input-hint">Формат: Номер отгрузки [Tab] Сумма расходов</div>
+                <textarea id="pasteInput" class="paste-area" placeholder="Пример:
 00001    1500.50
 00002    2300
-00003    890.25
-
-Выделите два столбца в Excel нажмите Ctrl+С и вставьте Ctrl+V здесь"
-                ></textarea>
+00003    890.25"></textarea>
             </div>
             
             <div class="preview-section">
                 <div class="preview-header">
-                    <span class="preview-title">Предпросмотр данных</span>
+                    <span class="preview-title">Предпросмотр</span>
                     <span id="previewCount" class="preview-count">0 записей</span>
                 </div>
                 
                 <div id="previewEmpty" class="preview-empty">
                     <div class="preview-empty-icon">📋</div>
-                    <div>Вставьте данные из Excel для предпросмотра</div>
+                    <div>Вставьте данные из Excel</div>
                 </div>
                 
                 <div id="previewTableWrapper" class="preview-table-wrapper" style="display: none;">
@@ -470,42 +321,22 @@
             </div>
             
             <div class="actions">
-                <div id="loader" class="loader">
-                    <div class="spinner"></div>
-                    <span>Обработка...</span>
-                </div>
-                <button id="clearBtn" class="btn btn-secondary" onclick="clearData()">
-                    Очистить
-                </button>
-                <button id="processBtn" class="btn btn-primary" onclick="processExpenses()" disabled>
-                    ✓ Разнести расходы
-                </button>
+                <div id="loader" class="loader"><div class="spinner"></div><span>Обработка...</span></div>
+                <button id="clearBtn" class="btn btn-secondary">Очистить</button>
+                <button id="processBtn" class="btn btn-primary" disabled>✓ Разнести расходы</button>
             </div>
         </div>
     </div>
     
-    <!-- Модальное окно выбора аккаунта -->
-    <div id="accountSelectModal" class="account-select-modal" style="display: none;">
-        <div class="account-select-content">
-            <div class="account-select-title">Выберите аккаунт</div>
-            <div id="accountSelectList"></div>
-        </div>
-    </div>
-    
     <script>
-        // ============== Глобальные переменные ==============
         let parsedData = [];
         let categories = [];
-        let currentAccount = null;
+        let currentAccountName = null;
         
-        const urlParams = new URLSearchParams(window.location.search);
-        const contextKey = urlParams.get('contextKey') || '';
-        
+        const contextKey = new URLSearchParams(window.location.search).get('contextKey') || '';
         const API_BASE = '/expensesms/api';
         
-        // ============== DOM элементы ==============
-        const accountInfo = document.getElementById('accountInfo');
-        const accountName = document.getElementById('accountName');
+        const accountBadge = document.getElementById('accountBadge');
         const mainContent = document.getElementById('mainContent');
         const categoryInput = document.getElementById('categoryInput');
         const categoryDropdown = document.getElementById('categoryDropdown');
@@ -519,164 +350,60 @@
         const clearBtn = document.getElementById('clearBtn');
         const loader = document.getElementById('loader');
         const statusMessage = document.getElementById('statusMessage');
-        const accountSelectModal = document.getElementById('accountSelectModal');
-        const accountSelectList = document.getElementById('accountSelectList');
         
-        // ============== Инициализация ==============
+        // Инициализация
         init();
         
         async function init() {
-            console.log('🚀 Инициализация приложения');
-            console.log('📎 contextKey:', contextKey ? contextKey.substring(0, 30) + '...' : 'отсутствует');
-            
-            // Сначала регистрируем контекст и определяем аккаунт
-            const accountResolved = await registerContext();
-            
-            if (accountResolved) {
-                // Загружаем категории
-                await loadCategories();
-                
-                // Настраиваем обработчики
-                setupEventListeners();
-            }
+            console.log('🚀 Запуск, contextKey:', contextKey ? contextKey.substring(0, 30) + '...' : 'нет');
+            await loadCategories();
+            setupEventListeners();
         }
         
-        async function registerContext() {
+        function apiUrl(endpoint) {
+            const sep = endpoint.includes('?') ? '&' : '?';
+            return `${API_BASE}${endpoint}${sep}contextKey=${encodeURIComponent(contextKey)}`;
+        }
+        
+        async function loadCategories() {
             try {
-                const response = await fetch(`${API_BASE}/register-context?contextKey=${encodeURIComponent(contextKey)}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contextKey: contextKey })
-                });
-                
+                const response = await fetch(apiUrl('/expense-categories'));
                 const data = await response.json();
-                console.log('📋 Результат регистрации контекста:', data);
                 
-                if (data.success) {
-                    // Аккаунт определён успешно
-                    currentAccount = {
-                        id: data.accountId,
-                        name: data.accountName
-                    };
-                    
-                    setAccountInfo(data.accountName, 'success');
-                    return true;
-                    
-                } else if (data.availableAccounts && data.availableAccounts.length > 0) {
-                    // Несколько аккаунтов - показываем выбор
-                    console.log('⚠️ Несколько аккаунтов, требуется выбор');
-                    showAccountSelect(data.availableAccounts);
-                    return false;
-                    
-                } else {
-                    // Нет активных аккаунтов
-                    setAccountInfo('Нет активных аккаунтов. Активируйте приложение в МойСклад.', 'error');
-                    blockApp();
-                    return false;
+                if (data.error) {
+                    setAccountStatus(data.error, 'error');
+                    mainContent.classList.add('app-disabled');
+                    return;
+                }
+                
+                categories = data.categories || [];
+                currentAccountName = data.accountName;
+                
+                setAccountStatus(currentAccountName || 'Подключено', 'success');
+                renderCategoryDropdown();
+                
+                if (categories.length > 0) {
+                    categoryInput.value = categories[0].name;
                 }
                 
             } catch (error) {
-                console.error('❌ Ошибка регистрации контекста:', error);
-                setAccountInfo('Ошибка подключения к серверу', 'error');
-                blockApp();
-                return false;
+                console.error('Ошибка:', error);
+                setAccountStatus('Ошибка подключения', 'error');
+                mainContent.classList.add('app-disabled');
             }
         }
         
-        function setAccountInfo(text, type) {
-            accountName.textContent = text;
-            accountInfo.className = 'account-info ' + type;
-            
-            const icons = {
-                'success': '✅',
-                'error': '❌',
-                'loading': '⏳'
-            };
-            
-            const iconEl = accountInfo.querySelector('.account-info-icon');
-            if (iconEl) {
-                iconEl.textContent = icons[type] || '📋';
-            }
-        }
-        
-        function blockApp() {
-            mainContent.classList.add('app-blocked');
-        }
-        
-        function unblockApp() {
-            mainContent.classList.remove('app-blocked');
-        }
-        
-        function showAccountSelect(accounts) {
-            accountSelectList.innerHTML = accounts.map(acc => `
-                <div class="account-option" data-id="${acc.id}" data-name="${escapeHtml(acc.name || 'Без имени')}">
-                    <div class="account-option-name">${escapeHtml(acc.name || 'Без имени')}</div>
-                    <div class="account-option-id">${acc.id}</div>
-                </div>
-            `).join('');
-            
-            accountSelectList.querySelectorAll('.account-option').forEach(opt => {
-                opt.addEventListener('click', async () => {
-                    const accountId = opt.dataset.id;
-                    const accountNameVal = opt.dataset.name;
-                    
-                    // Сохраняем выбор
-                    await selectAccount(accountId, accountNameVal);
-                });
-            });
-            
-            accountSelectModal.style.display = 'flex';
-            setAccountInfo('Выберите аккаунт', 'loading');
-        }
-        
-        async function selectAccount(accountId, accountNameVal) {
-            try {
-                // Регистрируем связь contextKey -> accountId
-                const response = await fetch(`${API_BASE}/register-context?contextKey=${encodeURIComponent(contextKey)}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        contextKey: contextKey,
-                        accountId: accountId
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    currentAccount = {
-                        id: accountId,
-                        name: accountNameVal
-                    };
-                    
-                    accountSelectModal.style.display = 'none';
-                    setAccountInfo(accountNameVal, 'success');
-                    unblockApp();
-                    
-                    // Загружаем категории для выбранного аккаунта
-                    await loadCategories();
-                    setupEventListeners();
-                } else {
-                    showStatus('Ошибка выбора аккаунта: ' + data.error, 'error');
-                }
-                
-            } catch (error) {
-                console.error('❌ Ошибка выбора аккаунта:', error);
-                showStatus('Ошибка: ' + error.message, 'error');
-            }
+        function setAccountStatus(text, type) {
+            accountBadge.textContent = text;
+            accountBadge.className = 'account-badge ' + type;
         }
         
         function setupEventListeners() {
             pasteInput.addEventListener('input', handleInput);
             pasteInput.addEventListener('paste', () => setTimeout(handleInput, 50));
-            categoryInput.addEventListener('input', () => {
-                filterCategories();
-                renderPreview();
-            });
-            categoryInput.addEventListener('focus', () => {
-                categoryDropdown.classList.add('show');
-                filterCategories();
-            });
+            
+            categoryInput.addEventListener('input', () => { filterCategories(); renderPreview(); });
+            categoryInput.addEventListener('focus', () => { categoryDropdown.classList.add('show'); filterCategories(); });
             
             document.addEventListener('click', (e) => {
                 if (!e.target.closest('.category-select-wrapper')) {
@@ -685,74 +412,21 @@
             });
             
             addCategoryBtn.addEventListener('click', addNewCategory);
-        }
-        
-        // ============== API функции ==============
-        
-        function buildApiUrl(endpoint) {
-            const separator = endpoint.includes('?') ? '&' : '?';
-            return `${API_BASE}${endpoint}${separator}contextKey=${encodeURIComponent(contextKey)}`;
-        }
-        
-        async function loadCategories() {
-            try {
-                const response = await fetch(buildApiUrl('/expense-categories'));
-                const data = await response.json();
-                
-                if (data.error) {
-                    console.error('❌ Ошибка загрузки категорий:', data.error);
-                    categoryDropdown.innerHTML = `<div class="category-empty">Ошибка: ${data.error}</div>`;
-                    return;
-                }
-                
-                categories = data.categories || [];
-                renderCategoryDropdown();
-                
-                // Обновляем информацию об аккаунте если пришла
-                if (data.accountName && currentAccount) {
-                    currentAccount.name = data.accountName;
-                    setAccountInfo(data.accountName, 'success');
-                }
-                
-                if (categories.length > 0) {
-                    categoryInput.value = categories[0].name;
-                }
-                
-                console.log(`✅ Загружено ${categories.length} категорий`);
-                
-            } catch (error) {
-                console.error('❌ Ошибка загрузки категорий:', error);
-                categoryDropdown.innerHTML = '<div class="category-empty">Ошибка загрузки</div>';
-            }
+            clearBtn.addEventListener('click', clearData);
+            processBtn.addEventListener('click', processExpenses);
         }
         
         function renderCategoryDropdown(filter = '') {
-            const filtered = categories.filter(c => 
-                c.name.toLowerCase().includes(filter.toLowerCase())
-            );
+            const filtered = categories.filter(c => c.name.toLowerCase().includes(filter.toLowerCase()));
             
             if (filtered.length === 0) {
-                if (filter) {
-                    categoryDropdown.innerHTML = `
-                        <div class="category-empty">
-                            Нет совпадений. Нажмите + чтобы добавить "${escapeHtml(filter)}"
-                        </div>
-                    `;
-                } else {
-                    categoryDropdown.innerHTML = `
-                        <div class="category-empty">
-                            Справочник пуст. Введите название и нажмите +
-                        </div>
-                    `;
-                }
+                categoryDropdown.innerHTML = `<div class="category-empty">${filter ? 'Нажмите + чтобы добавить' : 'Справочник пуст'}</div>`;
                 return;
             }
             
-            categoryDropdown.innerHTML = filtered.map(c => `
-                <div class="category-option" data-id="${c.id}" data-name="${escapeHtml(c.name)}">
-                    ${escapeHtml(c.name)}
-                </div>
-            `).join('');
+            categoryDropdown.innerHTML = filtered.map(c => 
+                `<div class="category-option" data-name="${escapeHtml(c.name)}">${escapeHtml(c.name)}</div>`
+            ).join('');
             
             categoryDropdown.querySelectorAll('.category-option').forEach(opt => {
                 opt.addEventListener('click', () => {
@@ -769,22 +443,16 @@
         
         async function addNewCategory() {
             const name = categoryInput.value.trim();
-            
-            if (!name) {
-                showStatus('Введите название статьи', 'error');
-                return;
-            }
-            
-            if (categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
-                showStatus('Такая статья уже существует', 'info');
-                return;
+            if (!name) { showStatus('Введите название', 'error'); return; }
+            if (categories.some(c => c.name.toLowerCase() === name.toLowerCase())) { 
+                showStatus('Уже существует', 'info'); return; 
             }
             
             addCategoryBtn.disabled = true;
             addCategoryBtn.textContent = '...';
             
             try {
-                const response = await fetch(buildApiUrl('/expense-categories'), {
+                const response = await fetch(apiUrl('/expense-categories'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name })
@@ -795,34 +463,24 @@
                 if (data.success) {
                     categories.push(data.category);
                     renderCategoryDropdown();
-                    showStatus(`✅ Статья "${name}" добавлена в справочник`, 'success');
+                    showStatus(`✅ "${name}" добавлена`, 'success');
                 } else {
-                    showStatus(`❌ Ошибка: ${data.error}`, 'error');
+                    showStatus(`❌ ${data.error}`, 'error');
                 }
             } catch (error) {
-                showStatus(`❌ Ошибка: ${error.message}`, 'error');
+                showStatus(`❌ ${error.message}`, 'error');
             } finally {
                 addCategoryBtn.disabled = false;
                 addCategoryBtn.textContent = '+';
             }
         }
         
-        // ============== Обработка данных ==============
-        
         function handleInput() {
             const text = pasteInput.value.trim();
-            
-            if (!text) {
-                showEmptyState();
-                return;
-            }
+            if (!text) { showEmptyState(); return; }
             
             parsedData = parseExcelData(text);
-            
-            if (parsedData.length === 0) {
-                showEmptyState();
-                return;
-            }
+            if (parsedData.length === 0) { showEmptyState(); return; }
             
             renderPreview();
         }
@@ -859,20 +517,12 @@
             return data;
         }
         
-        function getExpenseCategory() {
+        function getCategory() {
             return categoryInput.value.trim() || 'Накладные расходы';
         }
         
-        function formatComment(expense) {
-            const category = getExpenseCategory();
-            return expense.toLocaleString('ru-RU', {minimumFractionDigits: 2}) + ' руб - ' + category;
-        }
-        
         function renderPreview() {
-            if (parsedData.length === 0) {
-                showEmptyState();
-                return;
-            }
+            if (parsedData.length === 0) { showEmptyState(); return; }
             
             previewEmpty.style.display = 'none';
             previewTableWrapper.style.display = 'block';
@@ -880,21 +530,16 @@
             const validCount = parsedData.filter(d => d.isValid).length;
             previewCount.textContent = `${parsedData.length} записей (${validCount} корректных)`;
             
+            const category = getCategory();
             previewBody.innerHTML = parsedData.map((item, i) => `
                 <tr class="${item.isValid ? '' : 'row-error'}">
                     <td>${i + 1}</td>
                     <td class="number-col">
                         ${escapeHtml(item.demandNumber)}
-                        <span class="${item.isValid ? 'icon-valid' : 'icon-invalid'}">
-                            ${item.isValid ? '✓' : '✗'}
-                        </span>
+                        <span class="${item.isValid ? 'icon-valid' : 'icon-invalid'}">${item.isValid ? '✓' : '✗'}</span>
                     </td>
-                    <td class="expense-col">
-                        ${item.expense.toLocaleString('ru-RU', {minimumFractionDigits: 2})} ₽
-                    </td>
-                    <td class="comment-col">
-                        ${item.isValid ? escapeHtml(formatComment(item.expense)) : '—'}
-                    </td>
+                    <td class="expense-col">${item.expense.toLocaleString('ru-RU', {minimumFractionDigits: 2})} ₽</td>
+                    <td class="comment-col">${item.isValid ? escapeHtml(item.expense.toFixed(2) + ' руб - ' + category) : '—'}</td>
                 </tr>
             `).join('');
             
@@ -918,26 +563,20 @@
         
         async function processExpenses() {
             const validData = parsedData.filter(d => d.isValid);
-            const category = getExpenseCategory();
+            const category = getCategory();
             
-            if (validData.length === 0) {
-                showStatus('Нет корректных данных для обработки', 'error');
-                return;
-            }
+            if (validData.length === 0) { showStatus('Нет данных', 'error'); return; }
             
             loader.classList.add('show');
             processBtn.disabled = true;
             clearBtn.disabled = true;
             
             try {
-                const response = await fetch(buildApiUrl('/process-expenses'), {
+                const response = await fetch(apiUrl('/process-expenses'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        expenses: validData.map(d => ({
-                            demandNumber: d.demandNumber,
-                            expense: d.expense
-                        })),
+                        expenses: validData.map(d => ({ demandNumber: d.demandNumber, expense: d.expense })),
                         category: category
                     })
                 });
@@ -945,32 +584,21 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    let msg = `✅ Успешно обработано: ${result.processed} отгрузок`;
-                    if (result.errors > 0) {
-                        msg += `. Ошибок: ${result.errors}`;
-                    }
-                    if (result.accountName) {
-                        msg += ` (${result.accountName})`;
-                    }
-                    
+                    let msg = `✅ Обработано: ${result.processed}`;
+                    if (result.errors > 0) msg += `, ошибок: ${result.errors}`;
                     showStatus(msg, result.errors > 0 ? 'info' : 'success');
-                    
-                    if (result.errors === 0) {
-                        setTimeout(clearData, 2000);
-                    }
+                    if (result.errors === 0) setTimeout(clearData, 2000);
                 } else {
-                    showStatus(`❌ Ошибка: ${result.error}`, 'error');
+                    showStatus(`❌ ${result.error}`, 'error');
                 }
             } catch (error) {
-                showStatus(`❌ Ошибка соединения: ${error.message}`, 'error');
+                showStatus(`❌ ${error.message}`, 'error');
             } finally {
                 loader.classList.remove('show');
                 processBtn.disabled = false;
                 clearBtn.disabled = false;
             }
         }
-        
-        // ============== Утилиты ==============
         
         function showStatus(message, type) {
             statusMessage.textContent = message;

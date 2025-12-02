@@ -6,100 +6,26 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { padding: 10px 16px; font-family: Arial, sans-serif; font-size: 14px; }
         .row { display: flex; align-items: center; justify-content: space-between; }
-        .label { color: #333; display: flex; align-items: center; gap: 8px; }
-        .account-badge {
-            font-size: 11px;
-            background: #e3f2fd;
-            color: #1565c0;
-            padding: 2px 8px;
-            border-radius: 10px;
-        }
-        .account-badge.loading { background: #fff3e0; color: #e65100; }
-        .account-badge.error { background: #ffebee; color: #c62828; }
-        .btn { 
-            background: #4caf50; 
-            color: #fff; 
-            border: none; 
-            padding: 8px 20px; 
-            border-radius: 6px; 
-            cursor: pointer; 
-            font-size: 14px; 
-        }
+        .label { color: #333; }
+        .btn { background: #4caf50; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; }
         .btn:hover { background: #388e3c; }
-        .btn:disabled { background: #ccc; cursor: not-allowed; }
     </style>
 </head>
 <body>
     <div class="row">
-        <span class="label">
-            📊 Накладные расходы
-            <span id="accountBadge" class="account-badge loading">загрузка...</span>
-        </span>
+        <span class="label">📊 Накладные расходы</span>
         <button class="btn" id="openBtn">Занести расходы</button>
     </div>
     <script>
         var contextKey = new URLSearchParams(window.location.search).get('contextKey') || '';
-        var correlationId = null;
-        var accountBadge = document.getElementById('accountBadge');
-        var openBtn = document.getElementById('openBtn');
         
-        // Проверяем доступность аккаунта при загрузке
-        checkAccount();
-        
-        async function checkAccount() {
-            try {
-                var response = await fetch('/expensesms/api/register-context?contextKey=' + encodeURIComponent(contextKey), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contextKey: contextKey })
-                });
-                
-                var data = await response.json();
-                
-                if (data.success && data.accountName) {
-                    accountBadge.textContent = data.accountName;
-                    accountBadge.className = 'account-badge';
-                    openBtn.disabled = false;
-                } else if (data.availableAccounts && data.availableAccounts.length > 1) {
-                    accountBadge.textContent = 'выберите аккаунт';
-                    accountBadge.className = 'account-badge loading';
-                    openBtn.disabled = false;
-                } else {
-                    accountBadge.textContent = 'не активировано';
-                    accountBadge.className = 'account-badge error';
-                    openBtn.disabled = true;
-                }
-            } catch (e) {
-                console.error('Ошибка проверки аккаунта:', e);
-                accountBadge.textContent = 'ошибка';
-                accountBadge.className = 'account-badge error';
-            }
-        }
-        
-        window.addEventListener('message', function(e) {
-            var data = e.data;
-            if (!data || typeof data !== 'object') return;
-            
-            if (data.name === 'Open') {
-                correlationId = data.messageId;
-                window.parent.postMessage({
-                    name: 'OpenFeedback',
-                    correlationId: correlationId
-                }, 'https://online.moysklad.ru');
-            }
-        });
-        
-        openBtn.addEventListener('click', function() {
+        document.getElementById('openBtn').addEventListener('click', function() {
             var url = 'https://kulps.ru/expensesms/iframe?contextKey=' + encodeURIComponent(contextKey);
-            var w = 900;
-            var h = 700;
+            var w = 900, h = 700;
             var left = (screen.width - w) / 2;
             var top = (screen.height - h) / 2;
-            
-            window.open(url, 'ExpensesPopup', 
-                'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + 
-                ',scrollbars=yes,resizable=yes,toolbar=no,menubar=no');
+            window.open(url, 'ExpensesPopup', 'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + ',scrollbars=yes,resizable=yes');
         });
     </script>
 </body>
-</html>
+</html>ы
