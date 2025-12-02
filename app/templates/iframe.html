@@ -138,7 +138,7 @@
         <div class="header">
             <h1>📊 Занести накладные расходы</h1>
             <p>Скопируйте данные из Excel и вставьте ниже</p>
-            <div id="accountBadge" class="account-badge loading">Подключение...</div>
+            <div id="accountBadge" class="account-badge loading">🔄 Подключение к МойСклад...</div>
         </div>
         
         <div id="statusMessage" class="status-message"></div>
@@ -193,7 +193,8 @@
     <script>
         let parsedData = [];
         let categories = [];
-        let boundAccountId = null;
+        let resolvedAccountId = null;
+        let resolvedAccountName = null;
         
         const urlParams = new URLSearchParams(window.location.search);
         const contextKey = urlParams.get('contextKey') || '';
@@ -219,53 +220,61 @@
         init();
         
         async function init() {
-            console.log('🚀 Запуск');
+            console.log('🚀 Запуск iframe');
             console.log('📎 contextKey:', contextKey ? contextKey.substring(0, 30) + '...' : 'нет');
             
-            // Запрашиваем accountId у родительского окна МойСклад
-            requestAccountId();
-            
-            // Параллельно пробуем загрузить категории (вдруг уже есть маппинг)
-            await loadCategories();
-            
             setupEventListeners();
+            
+            // Запрашиваем accountId у МойСклад через postMessage
+            requestAccountIdFromMoySklad();
+            
+            // Таймаут на случай если postMessage не сработает
+            setTimeout(async () => {
+                if (!resolvedAccountId) {
+                    console.log('⏰ Таймаут postMessage, пробуем загрузить напрямую...');
+                    await loadCategories();
+                }
+            }, 2000);
         }
         
-        function requestAccountId() {
+        function requestAccountIdFromMoySklad() {
             // Отправляем запрос родительскому окну МойСклад
             if (window.parent && window.parent !== window) {
-                console.log('📤 Запрос accountId у МойСклад...');
-                window.parent.postMessage({
-                    name: 'getAccountId'
-                }, 'https://online.moysklad.ru');
+                console.log('📤 Отправка postMessage: getAccountId');
+                window.parent.postMessage({ name: 'getAccountId' }, '*');
+            } else {
+                console.log('⚠️ Нет родительского окна, загружаем напрямую');
+                loadCategories();
             }
         }
         
         // Слушаем ответ от МойСклад
         window.addEventListener('message', async function(event) {
-            // Проверяем источник
-            if (!event.origin.includes('moysklad.ru')) {
-                return;
-            }
+            console.log('📨 Получено сообщение:', event.origin, event.data);
             
             const data = event.data;
             if (!data || typeof data !== 'object') return;
             
-            console.log('📨 Получено сообщение от МойСклад:', data);
-            
-            // МойСклад может отправить accountId в разных форматах
-            let accountId = data.accountId || data.account_id || data.accountUuid;
-            
-            if (accountId && !boundAccountId) {
-                console.log('✅ Получен accountId:', accountId);
-                boundAccountId = accountId;
+            // МойСклад отвечает на getAccountId
+            if (data.name === 'accountId' || data.accountId) {
+                const accountId = data.accountId || data.value;
                 
-                // Привязываем contextKey к accountId
-                await bindContext(accountId);
+                if (accountId && !resolvedAccountId) {
+                    console.log('✅ Получен accountId от МойСклад:', accountId);
+                    resolvedAccountId = accountId;
+                    
+                    // Привязываем contextKey к accountId на сервере
+                    await bindContextToAccount(accountId);
+                    
+                    // Загружаем категории
+                    await loadCategories();
+                }
             }
         });
         
-        async function bindContext(accountId) {
+        async function bindContextToAccount(accountId) {
+            if (!contextKey || !accountId) return;
+            
             try {
                 const response = await fetch(`${API_BASE}/bind-context`, {
                     method: 'POST',
@@ -280,9 +289,7 @@
                 console.log('📌 Результат привязки:', data);
                 
                 if (data.success) {
-                    setAccountStatus(data.accountName || 'Подключено', 'success');
-                    // Перезагружаем категории
-                    await loadCategories();
+                    resolvedAccountName = data.accountName;
                 }
             } catch (error) {
                 console.error('Ошибка привязки:', error);
@@ -290,32 +297,47 @@
         }
         
         function apiUrl(endpoint) {
-            const sep = endpoint.includes('?') ? '&' : '?';
-            return `${API_BASE}${endpoint}${sep}contextKey=${encodeURIComponent(contextKey)}`;
+            let url = `${API_BASE}${endpoint}`;
+            const sep = url.includes('?') ? '&' : '?';
+            url += `${sep}contextKey=${encodeURIComponent(contextKey)}`;
+            
+            // Добавляем accountId если известен
+            if (resolvedAccountId) {
+                url += `&accountId=${encodeURIComponent(resolvedAccountId)}`;
+            }
+            
+            return url;
         }
         
         async function loadCategories() {
             try {
+                setAccountStatus('🔄 Загрузка...', 'loading');
+                
                 const response = await fetch(apiUrl('/expense-categories'));
                 const data = await response.json();
                 
+                console.log('📦 Ответ /expense-categories:', data);
+                
                 if (data.error) {
-                    // Если ошибка связана с определением аккаунта - ждём postMessage
-                    if (data.needsBinding) {
-                        setAccountStatus('Определение аккаунта...', 'loading');
-                        return;
+                    setAccountStatus('❌ ' + data.error, 'error');
+                    if (data.needsReinstall) {
+                        showStatus('Переустановите приложение в МойСклад', 'error');
                     }
-                    setAccountStatus(data.error, 'error');
                     mainContent.classList.add('app-disabled');
                     return;
                 }
                 
                 categories = data.categories || [];
                 
-                // Показываем имя аккаунта
+                // Сохраняем информацию об аккаунте
+                if (data.accountId) {
+                    resolvedAccountId = data.accountId;
+                }
                 if (data.accountName) {
-                    setAccountStatus(data.accountName, 'success');
-                    boundAccountId = data.accountId;
+                    resolvedAccountName = data.accountName;
+                    setAccountStatus('✅ ' + data.accountName, 'success');
+                } else {
+                    setAccountStatus('✅ Подключено', 'success');
                 }
                 
                 renderCategoryDropdown();
@@ -327,8 +349,8 @@
                 mainContent.classList.remove('app-disabled');
                 
             } catch (error) {
-                console.error('Ошибка:', error);
-                setAccountStatus('Ошибка подключения', 'error');
+                console.error('Ошибка загрузки:', error);
+                setAccountStatus('❌ Ошибка подключения', 'error');
             }
         }
         
@@ -489,6 +511,7 @@
                 if (result.success) {
                     let msg = `✅ Обработано: ${result.processed}`;
                     if (result.errors > 0) msg += `, ошибок: ${result.errors}`;
+                    if (result.accountName) msg += ` (${result.accountName})`;
                     showStatus(msg, result.errors > 0 ? 'info' : 'success');
                     if (result.errors === 0) setTimeout(clearData, 2000);
                 } else {
