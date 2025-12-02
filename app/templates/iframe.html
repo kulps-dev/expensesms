@@ -6,16 +6,13 @@
     <title>Накладные расходы</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        
         html, body { height: 100%; overflow-y: auto; }
-        
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #f5f5f5;
             min-height: 100vh;
             padding: 24px;
         }
-        
         .container {
             max-width: 900px;
             margin: 0 auto;
@@ -23,19 +20,15 @@
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             padding: 32px;
-            margin-bottom: 24px;
         }
-        
         .header {
             text-align: center;
             margin-bottom: 32px;
             padding-bottom: 24px;
             border-bottom: 1px solid #eee;
         }
-        
         .header h1 { font-size: 28px; color: #333; margin-bottom: 8px; }
         .header p { color: #666; font-size: 16px; }
-        
         .account-badge {
             display: inline-block;
             margin-top: 12px;
@@ -45,46 +38,21 @@
             border-radius: 20px;
             font-size: 13px;
         }
-        
         .account-badge.error { background: #ffebee; color: #c62828; }
         .account-badge.loading { background: #fff3e0; color: #e65100; }
-        
         .input-section { margin-bottom: 24px; }
-        
-        .input-label {
-            display: block;
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: #333;
-            font-size: 15px;
-        }
-        
+        .input-label { display: block; font-weight: 600; margin-bottom: 8px; color: #333; font-size: 15px; }
         .input-hint { font-size: 13px; color: #888; margin-bottom: 12px; }
-        
-        .category-wrapper {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            margin-bottom: 8px;
-        }
-        
-        .category-select-wrapper {
-            position: relative;
-            flex: 1;
-            max-width: 350px;
-        }
-        
+        .category-wrapper { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+        .category-select-wrapper { position: relative; flex: 1; max-width: 350px; }
         .category-input {
             width: 100%;
             padding: 12px 16px;
             border: 2px solid #ddd;
             border-radius: 8px;
             font-size: 15px;
-            transition: all 0.2s;
         }
-        
         .category-input:focus { outline: none; border-color: #1976d2; }
-        
         .category-dropdown {
             position: absolute;
             top: 100%;
@@ -99,19 +67,10 @@
             z-index: 100;
             display: none;
         }
-        
         .category-dropdown.show { display: block; }
-        
-        .category-option {
-            padding: 10px 16px;
-            cursor: pointer;
-            transition: background 0.15s;
-        }
-        
+        .category-option { padding: 10px 16px; cursor: pointer; }
         .category-option:hover { background: #f5f5f5; }
-        
         .category-empty { padding: 16px; text-align: center; color: #999; }
-        
         .btn-add {
             width: 44px;
             height: 44px;
@@ -121,143 +80,56 @@
             border-radius: 8px;
             font-size: 24px;
             cursor: pointer;
-            transition: all 0.2s;
             display: flex;
             align-items: center;
             justify-content: center;
         }
-        
         .btn-add:hover { background: #4caf50; color: #fff; }
         .btn-add:disabled { opacity: 0.5; cursor: not-allowed; }
-        
         .paste-area {
             width: 100%;
             min-height: 150px;
             padding: 16px;
             border: 2px dashed #ddd;
             border-radius: 8px;
-            font-family: 'Consolas', 'Monaco', monospace;
+            font-family: 'Consolas', monospace;
             font-size: 14px;
             resize: vertical;
-            transition: all 0.2s;
         }
-        
         .paste-area:focus { outline: none; border-color: #1976d2; background: #f8fbff; }
-        .paste-area::placeholder { color: #aaa; }
-        
         .preview-section { margin-bottom: 24px; }
-        
-        .preview-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-        
-        .preview-title { font-weight: 600; color: #333; font-size: 15px; }
-        
-        .preview-count {
-            font-size: 13px;
-            color: #666;
-            background: #f0f0f0;
-            padding: 4px 12px;
-            border-radius: 12px;
-        }
-        
-        .preview-table-wrapper {
-            max-height: 400px;
-            overflow-y: auto;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-        }
-        
+        .preview-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .preview-title { font-weight: 600; color: #333; }
+        .preview-count { font-size: 13px; color: #666; background: #f0f0f0; padding: 4px 12px; border-radius: 12px; }
+        .preview-table-wrapper { max-height: 400px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 8px; }
         .preview-table { width: 100%; border-collapse: collapse; }
-        
-        .preview-table th {
-            background: #f5f5f5;
-            padding: 12px 16px;
-            text-align: left;
-            font-weight: 600;
-            color: #555;
-            border-bottom: 1px solid #e0e0e0;
-            position: sticky;
-            top: 0;
-        }
-        
+        .preview-table th { background: #f5f5f5; padding: 12px 16px; text-align: left; font-weight: 600; color: #555; border-bottom: 1px solid #e0e0e0; position: sticky; top: 0; }
         .preview-table td { padding: 10px 16px; border-bottom: 1px solid #f0f0f0; }
         .preview-table tr:hover { background: #f8f9fa; }
-        
         .number-col { font-family: 'Consolas', monospace; color: #1976d2; }
         .expense-col { font-weight: 500; color: #2e7d32; }
         .comment-col { color: #666; font-style: italic; font-size: 13px; }
-        
-        .preview-empty {
-            text-align: center;
-            padding: 48px;
-            color: #999;
-            background: #fafafa;
-            border-radius: 8px;
-            border: 1px dashed #ddd;
-        }
-        
+        .preview-empty { text-align: center; padding: 48px; color: #999; background: #fafafa; border-radius: 8px; border: 1px dashed #ddd; }
         .preview-empty-icon { font-size: 48px; margin-bottom: 16px; }
-        
-        .actions {
-            display: flex;
-            gap: 12px;
-            justify-content: flex-end;
-            padding-top: 20px;
-            border-top: 1px solid #eee;
-        }
-        
-        .btn {
-            padding: 12px 28px;
-            border-radius: 8px;
-            font-size: 15px;
-            font-weight: 500;
-            cursor: pointer;
-            border: none;
-            transition: all 0.2s;
-        }
-        
+        .actions { display: flex; gap: 12px; justify-content: flex-end; padding-top: 20px; border-top: 1px solid #eee; }
+        .btn { padding: 12px 28px; border-radius: 8px; font-size: 15px; font-weight: 500; cursor: pointer; border: none; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-primary { background: #4caf50; color: white; }
         .btn-primary:hover:not(:disabled) { background: #43a047; }
         .btn-secondary { background: #f5f5f5; color: #333; border: 1px solid #ddd; }
-        .btn-secondary:hover:not(:disabled) { background: #eeeeee; }
-        
-        .status-message {
-            padding: 14px 18px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            display: none;
-            font-size: 14px;
-        }
-        
+        .status-message { padding: 14px 18px; border-radius: 8px; margin-bottom: 20px; display: none; font-size: 14px; }
         .status-message.show { display: block; }
         .status-success { background: #e8f5e9; color: #2e7d32; border-left: 4px solid #4caf50; }
         .status-error { background: #ffebee; color: #c62828; border-left: 4px solid #f44336; }
         .status-info { background: #e3f2fd; color: #1565c0; border-left: 4px solid #2196f3; }
-        
         .loader { display: none; align-items: center; gap: 10px; color: #666; }
         .loader.show { display: flex; }
-        
-        .spinner {
-            width: 20px;
-            height: 20px;
-            border: 2px solid #e0e0e0;
-            border-top: 2px solid #1976d2;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        
+        .spinner { width: 20px; height: 20px; border: 2px solid #e0e0e0; border-top: 2px solid #1976d2; border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
         .row-error { background: #fff8f8 !important; }
         .row-error td { color: #c62828; }
         .icon-valid { color: #4caf50; }
         .icon-invalid { color: #f44336; }
-        
         .app-disabled { opacity: 0.5; pointer-events: none; }
     </style>
 </head>
@@ -276,8 +148,7 @@
                 <label class="input-label">📝 Статья расходов</label>
                 <div class="category-wrapper">
                     <div class="category-select-wrapper">
-                        <input type="text" id="categoryInput" class="category-input" 
-                               placeholder="Выберите или введите статью..." autocomplete="off">
+                        <input type="text" id="categoryInput" class="category-input" placeholder="Выберите или введите статью..." autocomplete="off">
                         <div id="categoryDropdown" class="category-dropdown"></div>
                     </div>
                     <button id="addCategoryBtn" class="btn-add" title="Добавить статью">+</button>
@@ -299,22 +170,13 @@
                     <span class="preview-title">Предпросмотр</span>
                     <span id="previewCount" class="preview-count">0 записей</span>
                 </div>
-                
                 <div id="previewEmpty" class="preview-empty">
                     <div class="preview-empty-icon">📋</div>
                     <div>Вставьте данные из Excel</div>
                 </div>
-                
                 <div id="previewTableWrapper" class="preview-table-wrapper" style="display: none;">
                     <table class="preview-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 50px;">#</th>
-                                <th>Номер отгрузки</th>
-                                <th style="width: 150px;">Сумма</th>
-                                <th>Комментарий</th>
-                            </tr>
-                        </thead>
+                        <thead><tr><th>#</th><th>Номер отгрузки</th><th>Сумма</th><th>Комментарий</th></tr></thead>
                         <tbody id="previewBody"></tbody>
                     </table>
                 </div>
@@ -331,9 +193,11 @@
     <script>
         let parsedData = [];
         let categories = [];
-        let currentAccountName = null;
+        let boundAccountId = null;
         
-        const contextKey = new URLSearchParams(window.location.search).get('contextKey') || '';
+        const urlParams = new URLSearchParams(window.location.search);
+        const contextKey = urlParams.get('contextKey') || '';
+        
         const API_BASE = '/expensesms/api';
         
         const accountBadge = document.getElementById('accountBadge');
@@ -355,9 +219,74 @@
         init();
         
         async function init() {
-            console.log('🚀 Запуск, contextKey:', contextKey ? contextKey.substring(0, 30) + '...' : 'нет');
+            console.log('🚀 Запуск');
+            console.log('📎 contextKey:', contextKey ? contextKey.substring(0, 30) + '...' : 'нет');
+            
+            // Запрашиваем accountId у родительского окна МойСклад
+            requestAccountId();
+            
+            // Параллельно пробуем загрузить категории (вдруг уже есть маппинг)
             await loadCategories();
+            
             setupEventListeners();
+        }
+        
+        function requestAccountId() {
+            // Отправляем запрос родительскому окну МойСклад
+            if (window.parent && window.parent !== window) {
+                console.log('📤 Запрос accountId у МойСклад...');
+                window.parent.postMessage({
+                    name: 'getAccountId'
+                }, 'https://online.moysklad.ru');
+            }
+        }
+        
+        // Слушаем ответ от МойСклад
+        window.addEventListener('message', async function(event) {
+            // Проверяем источник
+            if (!event.origin.includes('moysklad.ru')) {
+                return;
+            }
+            
+            const data = event.data;
+            if (!data || typeof data !== 'object') return;
+            
+            console.log('📨 Получено сообщение от МойСклад:', data);
+            
+            // МойСклад может отправить accountId в разных форматах
+            let accountId = data.accountId || data.account_id || data.accountUuid;
+            
+            if (accountId && !boundAccountId) {
+                console.log('✅ Получен accountId:', accountId);
+                boundAccountId = accountId;
+                
+                // Привязываем contextKey к accountId
+                await bindContext(accountId);
+            }
+        });
+        
+        async function bindContext(accountId) {
+            try {
+                const response = await fetch(`${API_BASE}/bind-context`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contextKey: contextKey,
+                        accountId: accountId
+                    })
+                });
+                
+                const data = await response.json();
+                console.log('📌 Результат привязки:', data);
+                
+                if (data.success) {
+                    setAccountStatus(data.accountName || 'Подключено', 'success');
+                    // Перезагружаем категории
+                    await loadCategories();
+                }
+            } catch (error) {
+                console.error('Ошибка привязки:', error);
+            }
         }
         
         function apiUrl(endpoint) {
@@ -371,25 +300,35 @@
                 const data = await response.json();
                 
                 if (data.error) {
+                    // Если ошибка связана с определением аккаунта - ждём postMessage
+                    if (data.needsBinding) {
+                        setAccountStatus('Определение аккаунта...', 'loading');
+                        return;
+                    }
                     setAccountStatus(data.error, 'error');
                     mainContent.classList.add('app-disabled');
                     return;
                 }
                 
                 categories = data.categories || [];
-                currentAccountName = data.accountName;
                 
-                setAccountStatus(currentAccountName || 'Подключено', 'success');
+                // Показываем имя аккаунта
+                if (data.accountName) {
+                    setAccountStatus(data.accountName, 'success');
+                    boundAccountId = data.accountId;
+                }
+                
                 renderCategoryDropdown();
                 
                 if (categories.length > 0) {
                     categoryInput.value = categories[0].name;
                 }
                 
+                mainContent.classList.remove('app-disabled');
+                
             } catch (error) {
                 console.error('Ошибка:', error);
                 setAccountStatus('Ошибка подключения', 'error');
-                mainContent.classList.add('app-disabled');
             }
         }
         
@@ -401,16 +340,11 @@
         function setupEventListeners() {
             pasteInput.addEventListener('input', handleInput);
             pasteInput.addEventListener('paste', () => setTimeout(handleInput, 50));
-            
             categoryInput.addEventListener('input', () => { filterCategories(); renderPreview(); });
             categoryInput.addEventListener('focus', () => { categoryDropdown.classList.add('show'); filterCategories(); });
-            
             document.addEventListener('click', (e) => {
-                if (!e.target.closest('.category-select-wrapper')) {
-                    categoryDropdown.classList.remove('show');
-                }
+                if (!e.target.closest('.category-select-wrapper')) categoryDropdown.classList.remove('show');
             });
-            
             addCategoryBtn.addEventListener('click', addNewCategory);
             clearBtn.addEventListener('click', clearData);
             processBtn.addEventListener('click', processExpenses);
@@ -418,16 +352,13 @@
         
         function renderCategoryDropdown(filter = '') {
             const filtered = categories.filter(c => c.name.toLowerCase().includes(filter.toLowerCase()));
-            
             if (filtered.length === 0) {
                 categoryDropdown.innerHTML = `<div class="category-empty">${filter ? 'Нажмите + чтобы добавить' : 'Справочник пуст'}</div>`;
                 return;
             }
-            
             categoryDropdown.innerHTML = filtered.map(c => 
                 `<div class="category-option" data-name="${escapeHtml(c.name)}">${escapeHtml(c.name)}</div>`
             ).join('');
-            
             categoryDropdown.querySelectorAll('.category-option').forEach(opt => {
                 opt.addEventListener('click', () => {
                     categoryInput.value = opt.dataset.name;
@@ -437,9 +368,7 @@
             });
         }
         
-        function filterCategories() {
-            renderCategoryDropdown(categoryInput.value);
-        }
+        function filterCategories() { renderCategoryDropdown(categoryInput.value); }
         
         async function addNewCategory() {
             const name = categoryInput.value.trim();
@@ -457,9 +386,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name })
                 });
-                
                 const data = await response.json();
-                
                 if (data.success) {
                     categories.push(data.category);
                     renderCategoryDropdown();
@@ -478,21 +405,17 @@
         function handleInput() {
             const text = pasteInput.value.trim();
             if (!text) { showEmptyState(); return; }
-            
             parsedData = parseExcelData(text);
             if (parsedData.length === 0) { showEmptyState(); return; }
-            
             renderPreview();
         }
         
         function parseExcelData(text) {
             const lines = text.split('\n');
             const data = [];
-            
             for (const line of lines) {
                 const trimmed = line.trim();
                 if (!trimmed) continue;
-                
                 let parts = trimmed.split('\t');
                 if (parts.length < 2) parts = trimmed.split(';');
                 if (parts.length < 2) parts = trimmed.split(/\s{2,}/);
@@ -500,12 +423,10 @@
                     const match = trimmed.match(/^(.+?)\s+([\d\s,.]+)$/);
                     if (match) parts = [match[1], match[2]];
                 }
-                
                 if (parts.length >= 2) {
                     const demandNumber = parts[0].trim();
                     const expenseStr = parts[1].trim().replace(/\s/g, '').replace(',', '.');
                     const expense = parseFloat(expenseStr);
-                    
                     data.push({
                         demandNumber,
                         expense: isNaN(expense) ? 0 : expense,
@@ -513,36 +434,26 @@
                     });
                 }
             }
-            
             return data;
         }
         
-        function getCategory() {
-            return categoryInput.value.trim() || 'Накладные расходы';
-        }
+        function getCategory() { return categoryInput.value.trim() || 'Накладные расходы'; }
         
         function renderPreview() {
             if (parsedData.length === 0) { showEmptyState(); return; }
-            
             previewEmpty.style.display = 'none';
             previewTableWrapper.style.display = 'block';
-            
             const validCount = parsedData.filter(d => d.isValid).length;
             previewCount.textContent = `${parsedData.length} записей (${validCount} корректных)`;
-            
             const category = getCategory();
             previewBody.innerHTML = parsedData.map((item, i) => `
                 <tr class="${item.isValid ? '' : 'row-error'}">
                     <td>${i + 1}</td>
-                    <td class="number-col">
-                        ${escapeHtml(item.demandNumber)}
-                        <span class="${item.isValid ? 'icon-valid' : 'icon-invalid'}">${item.isValid ? '✓' : '✗'}</span>
-                    </td>
+                    <td class="number-col">${escapeHtml(item.demandNumber)} <span class="${item.isValid ? 'icon-valid' : 'icon-invalid'}">${item.isValid ? '✓' : '✗'}</span></td>
                     <td class="expense-col">${item.expense.toLocaleString('ru-RU', {minimumFractionDigits: 2})} ₽</td>
                     <td class="comment-col">${item.isValid ? escapeHtml(item.expense.toFixed(2) + ' руб - ' + category) : '—'}</td>
                 </tr>
             `).join('');
-            
             processBtn.disabled = validCount === 0;
         }
         
@@ -555,16 +466,10 @@
             processBtn.disabled = true;
         }
         
-        function clearData() {
-            pasteInput.value = '';
-            showEmptyState();
-            hideStatus();
-        }
+        function clearData() { pasteInput.value = ''; showEmptyState(); hideStatus(); }
         
         async function processExpenses() {
             const validData = parsedData.filter(d => d.isValid);
-            const category = getCategory();
-            
             if (validData.length === 0) { showStatus('Нет данных', 'error'); return; }
             
             loader.classList.add('show');
@@ -577,12 +482,10 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         expenses: validData.map(d => ({ demandNumber: d.demandNumber, expense: d.expense })),
-                        category: category
+                        category: getCategory()
                     })
                 });
-                
                 const result = await response.json();
-                
                 if (result.success) {
                     let msg = `✅ Обработано: ${result.processed}`;
                     if (result.errors > 0) msg += `, ошибок: ${result.errors}`;
@@ -606,9 +509,7 @@
             setTimeout(hideStatus, 5000);
         }
         
-        function hideStatus() {
-            statusMessage.className = 'status-message';
-        }
+        function hideStatus() { statusMessage.className = 'status-message'; }
         
         function escapeHtml(text) {
             const div = document.createElement('div');

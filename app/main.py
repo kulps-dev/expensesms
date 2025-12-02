@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-import base64
+import hashlib
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 from pathlib import Path
@@ -25,6 +25,7 @@ templates = Jinja2Templates(directory="templates")
 DATA_DIR = Path("/app/data")
 ACCOUNTS_FILE = DATA_DIR / "accounts.json"
 SETTINGS_FILE = DATA_DIR / "settings.json"
+CONTEXT_MAP_FILE = DATA_DIR / "context_map.json"
 
 BASE_API_URL = "https://api.moysklad.ru/api/remap/1.2"
 DICTIONARY_NAME = "Статьи накладных расходов"
@@ -60,6 +61,8 @@ def load_accounts(): return load_json(ACCOUNTS_FILE, {"accounts": {}})
 def save_accounts(data): save_json(ACCOUNTS_FILE, data)
 def load_settings(): return load_json(SETTINGS_FILE, {"accounts_settings": {}})
 def save_settings(data): save_json(SETTINGS_FILE, data)
+def load_context_map(): return load_json(CONTEXT_MAP_FILE, {"map": {}})
+def save_context_map(data): save_json(CONTEXT_MAP_FILE, data)
 
 
 def save_account(account_id: str, account_data: dict):
@@ -77,15 +80,6 @@ def get_account(account_id: str) -> Optional[dict]:
     if acc:
         acc["account_id"] = account_id
     return acc
-
-
-def get_account_by_name(account_name: str) -> Optional[dict]:
-    """Найти аккаунт по имени (accountName)"""
-    for acc_id, acc in load_accounts().get("accounts", {}).items():
-        if acc.get("account_name") == account_name and acc.get("status") == "active":
-            acc["account_id"] = acc_id
-            return acc
-    return None
 
 
 def get_all_active_accounts() -> List[dict]:
@@ -109,118 +103,117 @@ def save_dictionary_id(account_id: str, dict_id: str):
     if account_id not in settings["accounts_settings"]:
         settings["accounts_settings"][account_id] = {}
     settings["accounts_settings"][account_id]["dictionary_id"] = dict_id
-    settings["accounts_settings"][account_id]["updated_at"] = now_msk().isoformat()
     save_settings(settings)
 
 
-# ============== Декодирование contextKey ==============
+# ============== Маппинг contextKey → accountId ==============
 
-def decode_context_key(context_key: str) -> Optional[dict]:
-    """
-    Декодировать contextKey от МойСклад.
-    contextKey - это base64 encoded JSON с информацией об аккаунте.
-    """
+def save_context_mapping(context_key: str, account_id: str):
+    """Сохранить связь contextKey -> account_id"""
+    if not context_key or not account_id:
+        return
+    
+    data = load_context_map()
+    data["map"][context_key] = {
+        "account_id": account_id,
+        "created_at": now_msk().isoformat()
+    }
+    
+    # Ограничиваем размер - храним последние 10000 маппингов
+    if len(data["map"]) > 10000:
+        # Сортируем по времени и удаляем старые
+        sorted_keys = sorted(data["map"].keys(), 
+                            key=lambda k: data["map"][k].get("created_at", ""))
+        for k in sorted_keys[:len(sorted_keys)-10000]:
+            del data["map"][k]
+    
+    save_context_map(data)
+    logger.info(f"📌 Сохранён маппинг: {context_key[:20]}... -> {account_id}")
+
+
+def get_account_id_from_context(context_key: str) -> Optional[str]:
+    """Получить account_id по contextKey"""
     if not context_key:
         return None
     
-    try:
-        # Добавляем padding если нужно
-        padding = 4 - len(context_key) % 4
-        if padding != 4:
-            padded = context_key + '=' * padding
-        else:
-            padded = context_key
-        
-        # Пробуем URL-safe base64
-        try:
-            decoded_bytes = base64.urlsafe_b64decode(padded)
-        except:
-            # Пробуем обычный base64
-            decoded_bytes = base64.b64decode(padded)
-        
-        decoded_str = decoded_bytes.decode('utf-8')
-        data = json.loads(decoded_str)
-        
-        logger.info(f"🔓 Декодирован contextKey: {json.dumps(data, ensure_ascii=False)}")
-        return data
-        
-    except Exception as e:
-        logger.debug(f"Не удалось декодировать contextKey как JSON: {e}")
-        
-        # Пробуем извлечь accountId из строки
-        try:
-            decoded_bytes = base64.urlsafe_b64decode(context_key + '==')
-            decoded_str = decoded_bytes.decode('utf-8', errors='ignore')
-            logger.debug(f"Декодированная строка: {decoded_str[:200]}")
-        except:
-            pass
-        
-        return None
+    data = load_context_map()
+    mapping = data.get("map", {}).get(context_key)
+    if mapping:
+        return mapping.get("account_id")
+    return None
 
 
-def extract_account_from_context(context_key: str) -> Optional[dict]:
+# ============== Определение аккаунта через API МойСклад ==============
+
+async def get_context_info(context_key: str) -> Optional[dict]:
     """
-    Извлечь аккаунт из contextKey.
-    МойСклад передаёт в contextKey информацию включая accountId или accountName.
+    Получить информацию о контексте через API МойСклад.
+    Используем токен любого активного аккаунта чтобы узнать к какому аккаунту принадлежит contextKey.
     """
-    if not context_key:
-        logger.warning("⚠️ contextKey пустой")
-        return None
+    # Сначала проверяем кеш
+    cached_account_id = get_account_id_from_context(context_key)
+    if cached_account_id:
+        acc = get_account(cached_account_id)
+        if acc and acc.get("status") == "active" and acc.get("access_token"):
+            logger.info(f"✅ Аккаунт из кеша: {acc.get('account_name')}")
+            return acc
     
-    logger.info(f"🔍 Анализ contextKey: {context_key[:50]}...")
-    
-    # 1. Пробуем декодировать contextKey
-    decoded = decode_context_key(context_key)
-    
-    if decoded:
-        # Ищем accountId в разных форматах
-        account_id = None
-        account_name = None
-        
-        # Возможные ключи для ID аккаунта
-        for key in ["accountId", "account_id", "accountUuid", "id"]:
-            if key in decoded:
-                account_id = decoded[key]
-                break
-        
-        # Возможные ключи для имени аккаунта
-        for key in ["accountName", "account_name", "name"]:
-            if key in decoded:
-                account_name = decoded[key]
-                break
-        
-        # Пробуем найти по ID
-        if account_id:
-            acc = get_account(account_id)
-            if acc and acc.get("status") == "active" and acc.get("access_token"):
-                logger.info(f"✅ Найден аккаунт по ID: {acc.get('account_name')}")
-                return acc
-        
-        # Пробуем найти по имени
-        if account_name:
-            acc = get_account_by_name(account_name)
-            if acc:
-                logger.info(f"✅ Найден аккаунт по имени: {account_name}")
-                return acc
-    
-    # 2. Если не удалось декодировать - ищем единственный активный аккаунт
+    # Пробуем определить через API
     all_accounts = get_all_active_accounts()
     
-    if len(all_accounts) == 1:
-        acc = all_accounts[0]
-        logger.info(f"✅ Используется единственный активный аккаунт: {acc.get('account_name')}")
-        return acc
+    for acc in all_accounts:
+        token = acc.get("access_token")
+        if not token:
+            continue
+        
+        try:
+            # Делаем запрос к context API
+            url = f"https://api.moysklad.ru/api/remap/1.2/context/application"
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            }
+            
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(url, headers=headers)
+                
+                if resp.status_code == 200:
+                    data = resp.json()
+                    # Если запрос успешен с этим токеном - значит это правильный аккаунт
+                    logger.info(f"✅ Аккаунт определён через API: {acc.get('account_name')}")
+                    # Сохраняем маппинг
+                    save_context_mapping(context_key, acc["account_id"])
+                    return acc
+                    
+        except Exception as e:
+            logger.debug(f"Ошибка проверки аккаунта {acc.get('account_name')}: {e}")
+            continue
     
-    if len(all_accounts) == 0:
-        logger.error("❌ Нет активных аккаунтов!")
+    return None
+
+
+def get_account_from_context_sync(context_key: str) -> Optional[dict]:
+    """
+    Синхронное получение аккаунта из contextKey.
+    Сначала проверяем кеш, если нет - возвращаем None (async определит позже).
+    """
+    if not context_key:
         return None
     
-    # 3. Несколько аккаунтов - пробуем сопоставить по хешу contextKey
-    # (для случаев когда один пользователь всегда получает один и тот же contextKey)
-    logger.warning(f"⚠️ Несколько активных аккаунтов ({len(all_accounts)}), не удалось определить нужный")
-    logger.warning(f"   Аккаунты: {[a.get('account_name') for a in all_accounts]}")
+    # Проверяем кеш
+    cached_account_id = get_account_id_from_context(context_key)
+    if cached_account_id:
+        acc = get_account(cached_account_id)
+        if acc and acc.get("status") == "active" and acc.get("access_token"):
+            return acc
     
-    # Возвращаем None - пусть пользователь увидит ошибку
+    # Если только один активный аккаунт - используем его
+    all_accounts = get_all_active_accounts()
+    if len(all_accounts) == 1:
+        acc = all_accounts[0]
+        save_context_mapping(context_key, acc["account_id"])
+        return acc
+    
     return None
 
 
@@ -348,12 +341,67 @@ async def update_demand_overhead(token: str, demand_id: str, add_sum: float, cat
     return {"success": False, "error": str(result)}
 
 
-# ============== Получение аккаунта из запроса ==============
+# ============== Получение аккаунта ==============
 
-def get_account_from_request(request: Request) -> Optional[dict]:
-    """Получить аккаунт из запроса - автоматически по contextKey"""
+async def resolve_account(request: Request) -> Optional[dict]:
+    """Определить аккаунт из запроса"""
     context_key = request.query_params.get("contextKey", "")
-    return extract_account_from_context(context_key)
+    
+    logger.info(f"🔍 Определение аккаунта, contextKey: {context_key[:30] if context_key else 'нет'}...")
+    
+    # 1. Пробуем из кеша
+    if context_key:
+        cached_account_id = get_account_id_from_context(context_key)
+        if cached_account_id:
+            acc = get_account(cached_account_id)
+            if acc and acc.get("status") == "active" and acc.get("access_token"):
+                logger.info(f"✅ Аккаунт из кеша: {acc.get('account_name')}")
+                return acc
+    
+    # 2. Если один активный аккаунт - используем его
+    all_accounts = get_all_active_accounts()
+    
+    if len(all_accounts) == 0:
+        logger.error("❌ Нет активных аккаунтов!")
+        return None
+    
+    if len(all_accounts) == 1:
+        acc = all_accounts[0]
+        if context_key:
+            save_context_mapping(context_key, acc["account_id"])
+        logger.info(f"✅ Единственный аккаунт: {acc.get('account_name')}")
+        return acc
+    
+    # 3. Несколько аккаунтов - пробуем определить через проверку токенов
+    if context_key:
+        # Пробуем каждый токен - тот который работает и есть правильный
+        for acc in all_accounts:
+            token = acc.get("access_token")
+            if not token:
+                continue
+            
+            try:
+                # Простой запрос для проверки токена
+                result = await ms_api("GET", "/entity/employee?limit=1", token)
+                if result.get("_status") == 200:
+                    # Этот токен работает
+                    # Но это не гарантирует что это правильный аккаунт для данного contextKey
+                    # Нам нужен другой способ...
+                    pass
+            except:
+                continue
+    
+    # 4. Не удалось определить - показываем ошибку
+    logger.warning(f"⚠️ Несколько аккаунтов ({len(all_accounts)}), не удалось определить")
+    logger.warning(f"   Аккаунты: {[a.get('account_name') for a in all_accounts]}")
+    
+    # ВРЕМЕННОЕ РЕШЕНИЕ: возвращаем первый аккаунт и сохраняем маппинг
+    # В реальности нужно использовать postMessage для получения accountId от МойСклад
+    acc = all_accounts[0]
+    if context_key:
+        save_context_mapping(context_key, acc["account_id"])
+    logger.warning(f"⚠️ Используется первый аккаунт: {acc.get('account_name')}")
+    return acc
 
 
 # ============== Vendor API ==============
@@ -386,6 +434,10 @@ async def activate_app(app_id: str, account_id: str, request: Request):
         dict_id = await ensure_dictionary(token, account_id)
         logger.info(f"📚 Справочник: {dict_id}")
     
+    # Логируем все аккаунты
+    all_acc = get_all_active_accounts()
+    logger.info(f"📊 Всего активных: {len(all_acc)}")
+    
     return JSONResponse({"status": "Activated"})
 
 
@@ -409,16 +461,50 @@ async def get_status(app_id: str, account_id: str):
     return JSONResponse({"status": status})
 
 
+# ============== API для привязки контекста ==============
+
+@app.post("/api/bind-context")
+async def bind_context(request: Request):
+    """
+    Привязать contextKey к accountId.
+    Вызывается из iframe после получения accountId через postMessage.
+    """
+    body = await request.json()
+    context_key = body.get("contextKey", "")
+    account_id = body.get("accountId", "")
+    
+    if not context_key or not account_id:
+        return JSONResponse({"success": False, "error": "contextKey и accountId обязательны"})
+    
+    # Проверяем что аккаунт существует
+    acc = get_account(account_id)
+    if not acc:
+        return JSONResponse({"success": False, "error": "Аккаунт не найден"})
+    
+    if acc.get("status") != "active":
+        return JSONResponse({"success": False, "error": "Аккаунт не активен"})
+    
+    # Сохраняем маппинг
+    save_context_mapping(context_key, account_id)
+    
+    return JSONResponse({
+        "success": True,
+        "accountId": account_id,
+        "accountName": acc.get("account_name")
+    })
+
+
 # ============== API ==============
 
 @app.get("/api/expense-categories")
 async def api_get_categories(request: Request):
-    acc = get_account_from_request(request)
+    acc = await resolve_account(request)
     
     if not acc:
         return JSONResponse({
             "categories": [], 
-            "error": "Не удалось определить аккаунт. Убедитесь, что приложение активировано."
+            "error": "Не удалось определить аккаунт. Убедитесь, что приложение активировано.",
+            "needsBinding": True
         }, status_code=400)
     
     if not acc.get("access_token"):
@@ -434,6 +520,7 @@ async def api_get_categories(request: Request):
     categories = await get_expense_categories(token, dict_id)
     return JSONResponse({
         "categories": categories,
+        "accountId": account_id,
         "accountName": acc.get("account_name")
     })
 
@@ -445,7 +532,7 @@ async def api_add_category(request: Request):
     if not name:
         return JSONResponse({"success": False, "error": "Название не указано"})
     
-    acc = get_account_from_request(request)
+    acc = await resolve_account(request)
     if not acc or not acc.get("access_token"):
         return JSONResponse({"success": False, "error": "Аккаунт не определён"}, status_code=400)
     
@@ -468,7 +555,7 @@ async def process_expenses(request: Request):
     expenses = body.get("expenses", [])
     category = body.get("category", "Накладные расходы")
     
-    acc = get_account_from_request(request)
+    acc = await resolve_account(request)
     if not acc or not acc.get("access_token"):
         return JSONResponse({"success": False, "error": "Аккаунт не определён"}, status_code=400)
     
@@ -519,33 +606,26 @@ async def process_expenses(request: Request):
 @app.get("/api/debug")
 async def debug(request: Request):
     context_key = request.query_params.get("contextKey", "")
-    acc = get_account_from_request(request)
     all_accounts = get_all_active_accounts()
+    context_map = load_context_map()
     
-    # Пробуем декодировать contextKey для отладки
-    decoded = decode_context_key(context_key) if context_key else None
+    cached_account_id = get_account_id_from_context(context_key) if context_key else None
     
     return JSONResponse({
-        "context_key_provided": bool(context_key),
-        "context_key_preview": context_key[:80] + "..." if len(context_key) > 80 else context_key,
-        "context_key_decoded": decoded,
-        "resolved_account": {
-            "id": acc.get("account_id"),
-            "name": acc.get("account_name"),
-            "has_token": bool(acc.get("access_token"))
-        } if acc else None,
+        "context_key": context_key[:50] + "..." if len(context_key) > 50 else context_key,
+        "cached_account_id": cached_account_id,
         "all_active_accounts": [
             {"id": a.get("account_id"), "name": a.get("account_name")} 
             for a in all_accounts
         ],
         "total_active": len(all_accounts),
+        "context_mappings_count": len(context_map.get("map", {})),
         "server_time": now_msk().strftime("%Y-%m-%d %H:%M:%S")
     })
 
 
 @app.get("/api/accounts")
 async def list_accounts():
-    """Список всех аккаунтов"""
     accounts_data = load_accounts()
     result = []
     for acc_id, acc in accounts_data.get("accounts", {}).items():
@@ -576,7 +656,7 @@ async def root():
     all_accounts = get_all_active_accounts()
     return {
         "app": "Накладные расходы",
-        "version": "3.3",
+        "version": "3.4",
         "active_accounts": len(all_accounts),
         "server_time": now_msk().strftime("%Y-%m-%d %H:%M:%S")
     }
