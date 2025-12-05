@@ -26,9 +26,6 @@ services:
       - APP_ENV=production
       - PYTHONUNBUFFERED=1
       - ROOT_PATH=/expensesms
-      - MS_APP_UID=expenses-1-snjph.kulps
-      - MS_APP_ID=
-      - MS_SECRET_KEY=ПОДСТАВЬ_СВОЙ_SECRET_KEY_ИЗ_ЛК
     restart: unless-stopped
     networks:
       - expensesms-network
@@ -39,15 +36,7 @@ services:
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
-    entrypoint:
-      - /bin/sh
-      - -c
-      - |
-        trap exit TERM;
-        while :; do
-          certbot renew;
-          sleep 12h & wait ${!};
-        done;
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
     networks:
       - expensesms-network
 

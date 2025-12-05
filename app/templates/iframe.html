@@ -198,10 +198,7 @@
         
         const urlParams = new URLSearchParams(window.location.search);
         const contextKey = urlParams.get('contextKey') || '';
-        const initialAccountId = urlParams.get('accountId') || '';
-
-        // НАИБОЛЕЕ ВАЖНО:
-        // iframe открывается отдельным окном, домен kulps.ru, префикс /expensesms
+        
         const API_BASE = '/expensesms/api';
         
         const accountBadge = document.getElementById('accountBadge');
@@ -219,28 +216,96 @@
         const loader = document.getElementById('loader');
         const statusMessage = document.getElementById('statusMessage');
         
+        // Инициализация
         init();
         
         async function init() {
             console.log('🚀 Запуск iframe');
             console.log('📎 contextKey:', contextKey ? contextKey.substring(0, 30) + '...' : 'нет');
-            console.log('📎 accountId из URL:', initialAccountId || 'нет');
-
-            if (initialAccountId) {
-                resolvedAccountId = initialAccountId;
-            }
-
+            
             setupEventListeners();
-            await loadCategories();
+            
+            // Запрашиваем accountId у МойСклад через postMessage
+            requestAccountIdFromMoySklad();
+            
+            // Таймаут на случай если postMessage не сработает
+            setTimeout(async () => {
+                if (!resolvedAccountId) {
+                    console.log('⏰ Таймаут postMessage, пробуем загрузить напрямую...');
+                    await loadCategories();
+                }
+            }, 2000);
+        }
+        
+        function requestAccountIdFromMoySklad() {
+            // Отправляем запрос родительскому окну МойСклад
+            if (window.parent && window.parent !== window) {
+                console.log('📤 Отправка postMessage: getAccountId');
+                window.parent.postMessage({ name: 'getAccountId' }, '*');
+            } else {
+                console.log('⚠️ Нет родительского окна, загружаем напрямую');
+                loadCategories();
+            }
+        }
+        
+        // Слушаем ответ от МойСклад
+        window.addEventListener('message', async function(event) {
+            console.log('📨 Получено сообщение:', event.origin, event.data);
+            
+            const data = event.data;
+            if (!data || typeof data !== 'object') return;
+            
+            // МойСклад отвечает на getAccountId
+            if (data.name === 'accountId' || data.accountId) {
+                const accountId = data.accountId || data.value;
+                
+                if (accountId && !resolvedAccountId) {
+                    console.log('✅ Получен accountId от МойСклад:', accountId);
+                    resolvedAccountId = accountId;
+                    
+                    // Привязываем contextKey к accountId на сервере
+                    await bindContextToAccount(accountId);
+                    
+                    // Загружаем категории
+                    await loadCategories();
+                }
+            }
+        });
+        
+        async function bindContextToAccount(accountId) {
+            if (!contextKey || !accountId) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/bind-context`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contextKey: contextKey,
+                        accountId: accountId
+                    })
+                });
+                
+                const data = await response.json();
+                console.log('📌 Результат привязки:', data);
+                
+                if (data.success) {
+                    resolvedAccountName = data.accountName;
+                }
+            } catch (error) {
+                console.error('Ошибка привязки:', error);
+            }
         }
         
         function apiUrl(endpoint) {
             let url = `${API_BASE}${endpoint}`;
             const sep = url.includes('?') ? '&' : '?';
             url += `${sep}contextKey=${encodeURIComponent(contextKey)}`;
+            
+            // Добавляем accountId если известен
             if (resolvedAccountId) {
                 url += `&accountId=${encodeURIComponent(resolvedAccountId)}`;
             }
+            
             return url;
         }
         
@@ -264,6 +329,7 @@
                 
                 categories = data.categories || [];
                 
+                // Сохраняем информацию об аккаунте
                 if (data.accountId) {
                     resolvedAccountId = data.accountId;
                 }

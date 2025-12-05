@@ -18,35 +18,32 @@
     </div>
     <script>
         var contextKey = new URLSearchParams(window.location.search).get('contextKey') || '';
-        var msAccountId = null;  // не используется сейчас, но пусть будет
-
-        console.log('🧩 Виджет загружен, contextKey =', contextKey || 'нет');
-
-        document.getElementById('openBtn').addEventListener('click', function() {
-            console.log('🖱 Клик по кнопке "Занести расходы"');
-
-            var url = 'https://kulps.ru/expensesms/iframe';
-            if (contextKey) {
-                url += '?contextKey=' + encodeURIComponent(contextKey);
+        var correlationId = null;
+        
+        window.addEventListener('message', function(e) {
+            var data = e.data;
+            if (!data || typeof data !== 'object') return;
+            
+            if (data.name === 'Open') {
+                correlationId = data.messageId;
+                window.parent.postMessage({
+                    name: 'OpenFeedback',
+                    correlationId: correlationId
+                }, 'https://online.moysklad.ru');
             }
-
+        });
+        
+        document.getElementById('openBtn').addEventListener('click', function() {
+            // Исправленный URL с /expensesms
+            var url = 'https://kulps.ru/expensesms/iframe?contextKey=' + encodeURIComponent(contextKey);
             var w = 900;
             var h = 700;
             var left = (screen.width - w) / 2;
             var top = (screen.height - h) / 2;
             
-            var win = window.open(
-                url,
-                'ExpensesPopup',
-                'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top +
-                ',scrollbars=yes,resizable=yes,toolbar=no,menubar=no'
-            );
-
-            if (!win) {
-                console.log('⚠️ Не удалось открыть окно (pop-up заблокирован?)');
-            } else {
-                console.log('✅ Окно открыто с URL:', url);
-            }
+            window.open(url, 'ExpensesPopup', 
+                'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + 
+                ',scrollbars=yes,resizable=yes,toolbar=no,menubar=no');
         });
     </script>
 </body>
