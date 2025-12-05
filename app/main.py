@@ -1,5 +1,3 @@
-# main.py
-
 import os
 import json
 import logging
@@ -15,7 +13,6 @@ import httpx
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# ROOT_PATH задаётся из переменной окружения (в docker-compose и Dockerfile уже /expensesms)
 ROOT_PATH = os.getenv("ROOT_PATH", "/expensesms")
 
 app = FastAPI(
@@ -215,10 +212,10 @@ async def ms_api(method: str, endpoint: str, token: str, data: dict = None) -> d
 
 async def resolve_account(request: Request) -> Optional[dict]:
     """
-    Строгое определение аккаунта:
-    1) Если явно передан accountId в query → используем только его
-    2) Иначе ищем в кеше по contextKey
-    3) Если аккаунтов больше одного и нет маппинга → НЕ выбираем "последний", а возвращаем None
+    1) Если явно передан accountId в query → используем его
+    2) Иначе ищем по contextKey в кеше
+    3) Если аккаунт один — используем его (для старых/нестандартных вызовов)
+    4) Если их несколько и нет маппинга → возвращаем None
     """
     context_key = request.query_params.get("contextKey", "")
     account_id_hint = request.query_params.get("accountId", "")
@@ -257,7 +254,7 @@ async def resolve_account(request: Request) -> Optional[dict]:
         logger.error("❌ Нет активных аккаунтов вообще")
         return None
 
-    # если только один активный аккаунт - можно безопасно использовать
+    # Если всего один активный аккаунт — используем его
     if len(all_accounts) == 1:
         acc = all_accounts[0]
         logger.info(f"✅ Единственный активный аккаунт: {acc.get('account_name')} ({acc.get('account_id')})")
@@ -265,10 +262,10 @@ async def resolve_account(request: Request) -> Optional[dict]:
             save_context_mapping(context_key, acc["account_id"])
         return acc
 
-    # если несколько активных аккаунтов и нет уникального маппинга - ошибка
+    # Несколько активных аккаунтов и нет однозначного маппинга
     logger.error(
         "❌ Несколько активных аккаунтов и нет однозначного contextKey/accountId. "
-        "Останавливаемся, чтобы не использовать чужой токен."
+        "Чтобы не перепутать токены, возвращаем None."
     )
     return None
 
@@ -288,7 +285,6 @@ async def ensure_dictionary(token: str, account_id: str) -> Optional[str]:
         return result["id"]
 
     if result.get("_status") == 412:
-        # справочник с таким именем уже есть, пытаемся взять сохранённый id
         return get_dictionary_id(account_id)
 
     logger.error(f"❌ Не удалось создать/получить справочник: {result}")
@@ -311,7 +307,6 @@ async def add_expense_category(token: str, dict_id: str, name: str) -> Optional[
     if result.get("_status") in [200, 201] and result.get("id"):
         return {"id": result["id"], "name": result.get("name", name)}
     if result.get("_status") == 412:
-        # уже существует
         return {"id": "exists", "name": name}
     logger.error(f"❌ Ошибка создания элемента справочника: {result}")
     return None
@@ -428,7 +423,7 @@ async def deactivate_app(app_id: str, account_id: str, request: Request):
         acc["deactivated_at"] = now_msk().isoformat()
         save_account(account_id, acc)
 
-    # удаляем все маппинги contextKey для этого аккаунта
+    # удаляем маппинги contextKey для этого аккаунта
     context_map = load_context_map()
     keys_to_remove = [k for k, v in context_map.get("map", {}).items()
                       if v.get("account_id") == account_id]
@@ -451,9 +446,6 @@ async def get_status(app_id: str, account_id: str):
 
 @app.post("/api/bind-context")
 async def bind_context(request: Request):
-    """
-    Привязать contextKey к accountId (вызывается из iframe после postMessage от МойСклад).
-    """
     body = await request.json()
     context_key = body.get("contextKey", "")
     account_id = body.get("accountId", "")

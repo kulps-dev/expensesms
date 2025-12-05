@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Накладные расходы</title>
     <style>
-        /* твои стили без изменений */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { height: 100%; overflow-y: auto; }
         body {
@@ -199,19 +198,9 @@
         
         const urlParams = new URLSearchParams(window.location.search);
         const contextKey = urlParams.get('contextKey') || '';
-
-        // ВАЖНО: именно так
+        
+        // iframe открывается отдельным окном, поэтому указываем полный префикс
         const API_BASE = '/expensesms/api';
-
-        function apiUrl(endpoint) {
-            let url = `${API_BASE}${endpoint}`;
-            const sep = url.includes('?') ? '&' : '?';
-            url += `${sep}contextKey=${encodeURIComponent(contextKey)}`;
-            if (resolvedAccountId) {
-                url += `&accountId=${encodeURIComponent(resolvedAccountId)}`;
-            }
-            return url;
-        }
         
         const accountBadge = document.getElementById('accountBadge');
         const mainContent = document.getElementById('mainContent');
@@ -237,6 +226,7 @@
             setupEventListeners();
             requestAccountIdFromMoySklad();
             
+            // страховка: если postMessage не сработал, всё равно попробуем работать
             setTimeout(async () => {
                 if (!resolvedAccountId) {
                     console.log('⏰ Таймаут postMessage, пробуем загрузить напрямую...');
@@ -246,12 +236,21 @@
         }
         
         function requestAccountIdFromMoySklad() {
+            if (window.opener) {
+                console.log('📤 Отправка postMessage: getAccountId в window.opener');
+                try {
+                    window.opener.postMessage({ name: 'getAccountId' }, '*');
+                } catch (e) {
+                    console.log('⚠️ Ошибка postMessage в opener:', e);
+                }
+            }
             if (window.parent && window.parent !== window) {
-                console.log('📤 Отправка postMessage: getAccountId');
-                window.parent.postMessage({ name: 'getAccountId' }, '*');
-            } else {
-                console.log('⚠️ Нет родительского окна, загружаем напрямую');
-                loadCategories();
+                console.log('📤 Отправка postMessage: getAccountId в window.parent');
+                try {
+                    window.parent.postMessage({ name: 'getAccountId' }, '*');
+                } catch (e) {
+                    console.log('⚠️ Ошибка postMessage в parent:', e);
+                }
             }
         }
         
