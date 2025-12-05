@@ -17,7 +17,14 @@
         <button class="btn" id="openBtn">Занести расходы</button>
     </div>
     <script>
-        var contextKey = new URLSearchParams(window.location.search).get('contextKey') || '';
+        // Получаем ВСЕ параметры из URL
+        var urlParams = new URLSearchParams(window.location.search);
+        var contextKey = urlParams.get('contextKey') || '';
+        var appId = urlParams.get('appId') || '';
+        var appUid = urlParams.get('appUid') || '';
+        
+        console.log('Widget params:', { contextKey: contextKey.substring(0, 20), appId, appUid });
+        
         var correlationId = null;
         
         window.addEventListener('message', function(e) {
@@ -34,8 +41,12 @@
         });
         
         document.getElementById('openBtn').addEventListener('click', function() {
-            // Исправленный URL с /expensesms
-            var url = 'https://kulps.ru/expensesms/iframe?contextKey=' + encodeURIComponent(contextKey);
+            // Передаём ВСЕ параметры в popup
+            var url = 'https://kulps.ru/expensesms/iframe?' + 
+                'contextKey=' + encodeURIComponent(contextKey) +
+                '&appId=' + encodeURIComponent(appId) +
+                '&appUid=' + encodeURIComponent(appUid);
+            
             var w = 900;
             var h = 700;
             var left = (screen.width - w) / 2;

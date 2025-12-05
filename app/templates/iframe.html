@@ -131,6 +131,7 @@
         .icon-valid { color: #4caf50; }
         .icon-invalid { color: #f44336; }
         .app-disabled { opacity: 0.5; pointer-events: none; }
+        .debug-info { font-size: 11px; color: #999; margin-top: 8px; }
     </style>
 </head>
 <body>
@@ -139,6 +140,7 @@
             <h1>📊 Занести накладные расходы</h1>
             <p>Скопируйте данные из Excel и вставьте ниже</p>
             <div id="accountBadge" class="account-badge loading">🔄 Подключение к МойСклад...</div>
+            <div id="debugInfo" class="debug-info"></div>
         </div>
         
         <div id="statusMessage" class="status-message"></div>
@@ -196,12 +198,22 @@
         let resolvedAccountId = null;
         let resolvedAccountName = null;
         
+        // Получаем ВСЕ параметры из URL
         const urlParams = new URLSearchParams(window.location.search);
         const contextKey = urlParams.get('contextKey') || '';
+        const appId = urlParams.get('appId') || '';
+        const appUid = urlParams.get('appUid') || '';
+        
+        console.log('🚀 Iframe params:', { 
+            contextKey: contextKey ? contextKey.substring(0, 20) + '...' : 'нет', 
+            appId: appId || 'нет', 
+            appUid: appUid || 'нет'
+        });
         
         const API_BASE = '/expensesms/api';
         
         const accountBadge = document.getElementById('accountBadge');
+        const debugInfo = document.getElementById('debugInfo');
         const mainContent = document.getElementById('mainContent');
         const categoryInput = document.getElementById('categoryInput');
         const categoryDropdown = document.getElementById('categoryDropdown');
@@ -216,102 +228,36 @@
         const loader = document.getElementById('loader');
         const statusMessage = document.getElementById('statusMessage');
         
+        // Показываем отладочную информацию
+        debugInfo.textContent = `appId: ${appId ? appId.substring(0, 8) + '...' : 'нет'} | appUid: ${appUid || 'нет'}`;
+        
         // Инициализация
         init();
         
         async function init() {
             console.log('🚀 Запуск iframe');
-            console.log('📎 contextKey:', contextKey ? contextKey.substring(0, 30) + '...' : 'нет');
-            
             setupEventListeners();
-            
-            // Запрашиваем accountId у МойСклад через postMessage
-            requestAccountIdFromMoySklad();
-            
-            // Таймаут на случай если postMessage не сработает
-            setTimeout(async () => {
-                if (!resolvedAccountId) {
-                    console.log('⏰ Таймаут postMessage, пробуем загрузить напрямую...');
-                    await loadCategories();
-                }
-            }, 2000);
-        }
-        
-        function requestAccountIdFromMoySklad() {
-            // Отправляем запрос родительскому окну МойСклад
-            if (window.parent && window.parent !== window) {
-                console.log('📤 Отправка postMessage: getAccountId');
-                window.parent.postMessage({ name: 'getAccountId' }, '*');
-            } else {
-                console.log('⚠️ Нет родительского окна, загружаем напрямую');
-                loadCategories();
-            }
-        }
-        
-        // Слушаем ответ от МойСклад
-        window.addEventListener('message', async function(event) {
-            console.log('📨 Получено сообщение:', event.origin, event.data);
-            
-            const data = event.data;
-            if (!data || typeof data !== 'object') return;
-            
-            // МойСклад отвечает на getAccountId
-            if (data.name === 'accountId' || data.accountId) {
-                const accountId = data.accountId || data.value;
-                
-                if (accountId && !resolvedAccountId) {
-                    console.log('✅ Получен accountId от МойСклад:', accountId);
-                    resolvedAccountId = accountId;
-                    
-                    // Привязываем contextKey к accountId на сервере
-                    await bindContextToAccount(accountId);
-                    
-                    // Загружаем категории
-                    await loadCategories();
-                }
-            }
-        });
-        
-        async function bindContextToAccount(accountId) {
-            if (!contextKey || !accountId) return;
-            
-            try {
-                const response = await fetch(`${API_BASE}/bind-context`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contextKey: contextKey,
-                        accountId: accountId
-                    })
-                });
-                
-                const data = await response.json();
-                console.log('📌 Результат привязки:', data);
-                
-                if (data.success) {
-                    resolvedAccountName = data.accountName;
-                }
-            } catch (error) {
-                console.error('Ошибка привязки:', error);
-            }
+            await loadCategories();
         }
         
         function apiUrl(endpoint) {
             let url = `${API_BASE}${endpoint}`;
             const sep = url.includes('?') ? '&' : '?';
+            
+            // Всегда передаём contextKey
             url += `${sep}contextKey=${encodeURIComponent(contextKey)}`;
             
-            // Добавляем accountId если известен
-            if (resolvedAccountId) {
-                url += `&accountId=${encodeURIComponent(resolvedAccountId)}`;
-            }
-            
-            // Добавляем appId из URL
-            const appId = new URLSearchParams(window.location.search).get('appId') || '';
+            // ВАЖНО: Передаём appId - это ключевой параметр для определения аккаунта!
             if (appId) {
                 url += `&appId=${encodeURIComponent(appId)}`;
             }
             
+            // Передаём accountId если уже известен
+            if (resolvedAccountId) {
+                url += `&accountId=${encodeURIComponent(resolvedAccountId)}`;
+            }
+            
+            console.log('📡 API URL:', url);
             return url;
         }
         
