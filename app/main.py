@@ -192,39 +192,51 @@ def get_account_id_from_context(context_key: str) -> Optional[str]:
 # ============== Получение контекста из МойСклад API ==============
 
 async def get_context_from_moysklad(context_key: str) -> Optional[dict]:
-    """Получить контекст пользователя из МойСклад по contextKey (POST метод)"""
+    """Получить контекст пользователя из МойСклад по contextKey"""
     if not context_key:
+        return None
+    
+    if not APP_SECRET:
+        logger.warning("⚠️ APP_SECRET не задан!")
         return None
     
     url = f"{VENDOR_API_BASE}/context/{context_key}"
     
     headers = {
         "Accept-Encoding": "gzip",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {APP_SECRET}"  # Используем секрет как Bearer токен
     }
-    
-    if APP_ID and APP_SECRET:
-        credentials = f"{APP_ID}:{APP_SECRET}"
-        encoded = base64.b64encode(credentials.encode()).decode()
-        headers["Authorization"] = f"Basic {encoded}"
     
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
-            # Используем POST метод
+            logger.info(f"📡 Запрос контекста: {url[:50]}...")
+            
+            # POST запрос
             resp = await client.post(url, headers=headers, json={})
             
-            logger.info(f"📡 Контекст API: статус {resp.status_code}")
+            logger.info(f"📡 Ответ POST: {resp.status_code}")
             
             if resp.status_code == 200:
                 data = resp.json()
                 logger.info(f"✅ Контекст: {json.dumps(data, ensure_ascii=False)[:300]}")
                 return data
-            else:
-                logger.warning(f"⚠️ Ошибка контекста: {resp.status_code} - {resp.text[:200]}")
-                return None
+            
+            # Если POST не сработал, пробуем GET
+            resp = await client.get(url, headers=headers)
+            
+            logger.info(f"📡 Ответ GET: {resp.status_code}")
+            
+            if resp.status_code == 200:
+                data = resp.json()
+                logger.info(f"✅ Контекст: {json.dumps(data, ensure_ascii=False)[:300]}")
+                return data
+            
+            logger.warning(f"⚠️ Ошибка: {resp.status_code} - {resp.text[:300]}")
+            return None
                 
         except Exception as e:
-            logger.error(f"❌ Ошибка запроса контекста: {e}")
+            logger.error(f"❌ Ошибка запроса: {e}")
             return None
 
 
