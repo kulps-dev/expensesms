@@ -22,12 +22,20 @@
 
         // Слушаем сообщения от МойСклад
         window.addEventListener('message', function(e) {
+            console.log('📨 ВИДЖЕТ ПОЛУЧИЛ message:', e.origin, e.data);
             var data = e.data;
             if (!data || typeof data !== 'object') return;
 
-            // МойСклад в новых приложениях шлёт accountId в data.accountId
+            // Попытка вытащить accountId из разных возможных мест
             if (data.accountId) {
                 msAccountId = data.accountId;
+            } else if (data.params && data.params.accountId) {
+                msAccountId = data.params.accountId;
+            } else if (data.meta && data.meta.accountId) {
+                msAccountId = data.meta.accountId;
+            }
+
+            if (msAccountId) {
                 console.log('✅ accountId от МойСклад в виджете:', msAccountId);
             }
 
@@ -43,7 +51,7 @@
         document.getElementById('openBtn').addEventListener('click', function() {
             var url = 'https://kulps.ru/expensesms/iframe?contextKey=' + encodeURIComponent(contextKey);
 
-            // ВАЖНО: если в виджет прилетел accountId, добавляем в URL
+            // Если есть msAccountId — добавляем в URL
             if (msAccountId) {
                 url += '&accountId=' + encodeURIComponent(msAccountId);
             }
