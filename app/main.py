@@ -125,7 +125,7 @@ def save_dictionary_id(account_id: str, dict_id: str):
     save_settings(settings)
 
 
-# ============== Маппинг contextKey → accountId ==============
+# ============== Маппинг contextKey → accountId (опционально) ==============
 
 def save_context_mapping(context_key: str, account_id: str):
     if not context_key or not account_id:
@@ -211,10 +211,10 @@ async def ms_api(method: str, endpoint: str, token: str, data: dict = None) -> d
 
 async def resolve_account(request: Request) -> Optional[dict]:
     """
-    Основная схема:
-    1) Если явно передан accountId в query → используем его (это наш главный способ).
+    1) Если явно передан accountId в query → используем его (главный механизм).
     2) Иначе пробуем contextKey → accountId из кеша.
-    3) Если в хранилище всего один активный аккаунт → используем его (fallback).
+    3) Если активный аккаунт всего один → используем его как fallback.
+    4) Если активных несколько и нет accountId → возвращаем None.
     """
     context_key = request.query_params.get("contextKey", "")
     account_id_hint = request.query_params.get("accountId", "")
@@ -234,7 +234,7 @@ async def resolve_account(request: Request) -> Optional[dict]:
         else:
             logger.warning(f"⚠️ Hint accountId {account_id_hint} неактивен или нет токена")
 
-    # 2. contextKey → accountId из кеша
+    # 2. contextKey → accountId из кеша (если когда-то сохраняли)
     if context_key:
         cached_account_id = get_account_id_from_context(context_key)
         if cached_account_id:
@@ -260,7 +260,7 @@ async def resolve_account(request: Request) -> Optional[dict]:
             save_context_mapping(context_key, acc["account_id"])
         return acc
 
-    # Если их несколько и нет accountId в запросе — не рискуем
+    # 4. Если их несколько и нет accountId в запросе — не рискуем
     logger.error(
         "❌ Несколько активных аккаунтов и нет однозначного accountId/contextKey. "
         "Вернём None, чтобы не использовать чужой токен."
