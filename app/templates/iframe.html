@@ -306,6 +306,12 @@
                 url += `&accountId=${encodeURIComponent(resolvedAccountId)}`;
             }
             
+            // Добавляем appId из URL
+            const appId = new URLSearchParams(window.location.search).get('appId') || '';
+            if (appId) {
+                url += `&appId=${encodeURIComponent(appId)}`;
+            }
+            
             return url;
         }
         
