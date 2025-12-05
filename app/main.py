@@ -1,4 +1,4 @@
-# main.py - ИСПРАВЛЕННАЯ ВЕРСИЯ v4.1
+# main.py - ИСПРАВЛЕННАЯ ВЕРСИЯ v5.0
 
 import os
 import json
@@ -26,7 +26,6 @@ templates = Jinja2Templates(directory="templates")
 DATA_DIR = Path("/app/data")
 ACCOUNTS_FILE = DATA_DIR / "accounts.json"
 SETTINGS_FILE = DATA_DIR / "settings.json"
-CONTEXT_MAP_FILE = DATA_DIR / "context_map.json"
 
 BASE_API_URL = "https://api.moysklad.ru/api/remap/1.2"
 DICTIONARY_NAME = "Статьи накладных расходов"
@@ -43,27 +42,38 @@ def now_msk() -> datetime:
 def ensure_data_dir():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+
 def load_json(path: Path, default: dict) -> dict:
     ensure_data_dir()
     if path.exists():
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 return json.load(f)
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"Ошибка чтения {path}: {e}")
     return default
+
 
 def save_json(path: Path, data: dict):
     ensure_data_dir()
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def load_accounts(): return load_json(ACCOUNTS_FILE, {"accounts": {}})
-def save_accounts(data): save_json(ACCOUNTS_FILE, data)
-def load_settings(): return load_json(SETTINGS_FILE, {"accounts_settings": {}})
-def save_settings(data): save_json(SETTINGS_FILE, data)
-def load_context_map(): return load_json(CONTEXT_MAP_FILE, {"map": {}})
-def save_context_map(data): save_json(CONTEXT_MAP_FILE, data)
+
+def load_accounts():
+    return load_json(ACCOUNTS_FILE, {"accounts": {}})
+
+
+def save_accounts(data):
+    save_json(ACCOUNTS_FILE, data)
+
+
+def load_settings():
+    return load_json(SETTINGS_FILE, {"accounts_settings": {}})
+
+
+def save_settings(data):
+    save_json(SETTINGS_FILE, data)
 
 
 def save_account(account_id: str, account_data: dict):
@@ -77,6 +87,8 @@ def save_account(account_id: str, account_data: dict):
 
 
 def get_account(account_id: str) -> Optional[dict]:
+    if not account_id:
+        return None
     acc = load_accounts().get("accounts", {}).get(account_id)
     if acc:
         acc["account_id"] = account_id
@@ -107,60 +119,6 @@ def save_dictionary_id(account_id: str, dict_id: str):
     save_settings(settings)
 
 
-# ============== Маппинг contextKey → accountId ==============
-
-def save_context_mapping(context_key: str, account_id: str):
-    if not context_key or not account_id:
-        return
-    
-    # Проверяем что аккаунт существует и активен
-    acc = get_account(account_id)
-    if not acc or acc.get("status") != "active":
-        logger.warning(f"⚠️ Попытка сохранить маппинг для неактивного аккаунта: {account_id}")
-        return
-    
-    data = load_context_map()
-    data["map"][context_key] = {
-        "account_id": account_id,
-        "account_name": acc.get("account_name", ""),
-        "created_at": now_msk().isoformat()
-    }
-    
-    # Ограничиваем размер
-    if len(data["map"]) > 10000:
-        sorted_keys = sorted(data["map"].keys(), 
-                            key=lambda k: data["map"][k].get("created_at", ""))
-        for k in sorted_keys[:len(sorted_keys)-10000]:
-            del data["map"][k]
-    
-    save_context_map(data)
-    logger.info(f"📌 Маппинг: {context_key[:20]}... -> {account_id} ({acc.get('account_name')})")
-
-
-def get_account_id_from_context(context_key: str) -> Optional[str]:
-    """Получить account_id из кеша, с валидацией"""
-    if not context_key:
-        return None
-    
-    data = load_context_map()
-    mapping = data.get("map", {}).get(context_key)
-    
-    if not mapping:
-        return None
-    
-    account_id = mapping.get("account_id")
-    
-    # Проверяем что аккаунт существует и активен
-    acc = get_account(account_id)
-    if not acc or acc.get("status") != "active" or not acc.get("access_token"):
-        logger.warning(f"⚠️ Кешированный аккаунт {account_id} неактивен, удаляем маппинг")
-        del data["map"][context_key]
-        save_context_map(data)
-        return None
-    
-    return account_id
-
-
 # ============== API МойСклад ==============
 
 async def ms_api(method: str, endpoint: str, token: str, data: dict = None) -> dict:
@@ -184,7 +142,7 @@ async def ms_api(method: str, endpoint: str, token: str, data: dict = None) -> d
             
             try:
                 result = resp.json()
-            except:
+            except Exception:
                 result = {"_text": resp.text[:1000]}
             
             result["_status"] = resp.status_code
@@ -196,41 +154,25 @@ async def ms_api(method: str, endpoint: str, token: str, data: dict = None) -> d
 # ============== Определение аккаунта ==============
 
 async def resolve_account(request: Request) -> Optional[dict]:
-    """Определить аккаунт из запроса"""
-    context_key = request.query_params.get("contextKey", "")
-    account_id_hint = request.query_params.get("accountId", "")
+    """Определить аккаунт из запроса - строго по accountId"""
+    account_id = request.query_params.get("accountId", "")
     
-    logger.info(f"🔍 Определение аккаунта...")
-    logger.info(f"   contextKey: {context_key[:30] if context_key else 'нет'}...")
-    logger.info(f"   accountId hint: {account_id_hint or 'нет'}")
+    logger.info(f"🔍 Определение аккаунта: accountId={account_id or 'НЕ ПЕРЕДАН'}")
     
-    # 1. Если передан accountId напрямую - используем его
-    if account_id_hint:
-        acc = get_account(account_id_hint)
+    # 1. Если передан accountId - используем только его
+    if account_id:
+        acc = get_account(account_id)
         if acc and acc.get("status") == "active" and acc.get("access_token"):
-            logger.info(f"✅ Аккаунт по hint: {acc.get('account_name')}")
-            # Сохраняем маппинг
-            if context_key:
-                save_context_mapping(context_key, account_id_hint)
+            logger.info(f"✅ Аккаунт найден: {acc.get('account_name')}")
             return acc
         else:
-            logger.warning(f"⚠️ Hint accountId {account_id_hint} неактивен")
+            logger.error(f"❌ Аккаунт {account_id} не найден или неактивен")
+            return None
     
-    # 2. Проверяем кеш маппингов
-    if context_key:
-        cached_account_id = get_account_id_from_context(context_key)
-        if cached_account_id:
-            acc = get_account(cached_account_id)
-            if acc:
-                logger.info(f"✅ Аккаунт из кеша: {acc.get('account_name')}")
-                return acc
-    
-    # 3. Получаем все активные аккаунты
+    # 2. accountId не передан - проверяем есть ли единственный аккаунт
     all_accounts = get_all_active_accounts()
     
     logger.info(f"📊 Активных аккаунтов: {len(all_accounts)}")
-    for acc in all_accounts:
-        logger.info(f"   - {acc.get('account_name')} ({acc.get('account_id')[:8]}...)")
     
     if len(all_accounts) == 0:
         logger.error("❌ Нет активных аккаунтов!")
@@ -238,20 +180,14 @@ async def resolve_account(request: Request) -> Optional[dict]:
     
     if len(all_accounts) == 1:
         acc = all_accounts[0]
-        if context_key:
-            save_context_mapping(context_key, acc["account_id"])
         logger.info(f"✅ Единственный аккаунт: {acc.get('account_name')}")
         return acc
     
-    # 4. Несколько аккаунтов - берём последний активированный
-    all_accounts.sort(key=lambda x: x.get("activated_at", ""), reverse=True)
-    acc = all_accounts[0]
-    
-    if context_key:
-        save_context_mapping(context_key, acc["account_id"])
-    
-    logger.warning(f"⚠️ Несколько аккаунтов, используем последний: {acc.get('account_name')}")
-    return acc
+    # 3. Несколько аккаунтов без accountId - ошибка
+    logger.error(f"❌ Несколько аккаунтов ({len(all_accounts)}), но accountId не передан!")
+    for acc in all_accounts:
+        logger.error(f"   - {acc.get('account_name')} ({acc.get('account_id')})")
+    return None
 
 
 # ============== Справочник ==============
@@ -267,8 +203,16 @@ async def ensure_dictionary(token: str, account_id: str) -> Optional[str]:
     if result.get("_status") in [200, 201] and result.get("id"):
         save_dictionary_id(account_id, result["id"])
         return result["id"]
+    
     if result.get("_status") == 412:
-        return get_dictionary_id(account_id)
+        # Справочник уже существует, ищем его
+        search = await ms_api("GET", "/entity/customentity", token)
+        if search.get("_status") == 200:
+            for entity in search.get("rows", []):
+                if entity.get("name") == DICTIONARY_NAME:
+                    save_dictionary_id(account_id, entity["id"])
+                    return entity["id"]
+    
     return None
 
 
@@ -401,15 +345,6 @@ async def deactivate_app(app_id: str, account_id: str, request: Request):
         acc["deactivated_at"] = now_msk().isoformat()
         save_account(account_id, acc)
     
-    # Очищаем маппинги для этого аккаунта
-    context_map = load_context_map()
-    keys_to_remove = [k for k, v in context_map.get("map", {}).items() 
-                      if v.get("account_id") == account_id]
-    for k in keys_to_remove:
-        del context_map["map"][k]
-    save_context_map(context_map)
-    logger.info(f"🧹 Очищено {len(keys_to_remove)} маппингов")
-    
     return JSONResponse(status_code=200, content={})
 
 
@@ -420,36 +355,6 @@ async def get_status(app_id: str, account_id: str):
     return JSONResponse({"status": status})
 
 
-# ============== API для привязки контекста ==============
-
-@app.post("/api/bind-context")
-async def bind_context(request: Request):
-    """Привязать contextKey к accountId (вызывается из iframe после postMessage)"""
-    body = await request.json()
-    context_key = body.get("contextKey", "")
-    account_id = body.get("accountId", "")
-    
-    logger.info(f"📌 bind-context: contextKey={context_key[:20]}..., accountId={account_id}")
-    
-    if not context_key or not account_id:
-        return JSONResponse({"success": False, "error": "contextKey и accountId обязательны"})
-    
-    acc = get_account(account_id)
-    if not acc:
-        return JSONResponse({"success": False, "error": f"Аккаунт {account_id} не найден"})
-    
-    if acc.get("status") != "active":
-        return JSONResponse({"success": False, "error": "Аккаунт не активен"})
-    
-    save_context_mapping(context_key, account_id)
-    
-    return JSONResponse({
-        "success": True,
-        "accountId": account_id,
-        "accountName": acc.get("account_name")
-    })
-
-
 # ============== API ==============
 
 @app.get("/api/expense-categories")
@@ -457,10 +362,21 @@ async def api_get_categories(request: Request):
     acc = await resolve_account(request)
     
     if not acc:
+        all_accounts = get_all_active_accounts()
+        error_msg = "Аккаунт не определён."
+        if len(all_accounts) > 1:
+            error_msg = f"Несколько аккаунтов ({len(all_accounts)}), требуется accountId в URL. Обновите дескриптор приложения."
+        elif len(all_accounts) == 0:
+            error_msg = "Нет активных аккаунтов. Переустановите приложение."
+        
         return JSONResponse({
-            "categories": [], 
-            "error": "Не удалось определить аккаунт. Переустановите приложение.",
-            "needsReinstall": True
+            "categories": [],
+            "error": error_msg,
+            "needsReinstall": len(all_accounts) == 0,
+            "debug": {
+                "accountIdParam": request.query_params.get("accountId", ""),
+                "activeAccounts": len(all_accounts)
+            }
         }, status_code=400)
     
     if not acc.get("access_token"):
@@ -561,21 +477,30 @@ async def process_expenses(request: Request):
 
 @app.get("/api/debug")
 async def debug(request: Request):
-    context_key = request.query_params.get("contextKey", "")
+    account_id_param = request.query_params.get("accountId", "")
     all_accounts = get_all_active_accounts()
-    context_map = load_context_map()
     
-    cached_account_id = get_account_id_from_context(context_key) if context_key else None
+    resolved = None
+    if account_id_param:
+        resolved = get_account(account_id_param)
     
     return JSONResponse({
-        "context_key": context_key[:50] + "..." if len(context_key) > 50 else context_key,
-        "cached_account_id": cached_account_id,
+        "accountId_param": account_id_param,
+        "resolved_account": {
+            "id": resolved.get("account_id") if resolved else None,
+            "name": resolved.get("account_name") if resolved else None,
+            "status": resolved.get("status") if resolved else None,
+            "has_token": bool(resolved.get("access_token")) if resolved else False
+        } if resolved else None,
         "all_active_accounts": [
-            {"id": a.get("account_id"), "name": a.get("account_name")} 
+            {
+                "id": a.get("account_id"),
+                "name": a.get("account_name"),
+                "activated_at": a.get("activated_at")
+            }
             for a in all_accounts
         ],
         "total_active": len(all_accounts),
-        "context_mappings_count": len(context_map.get("map", {})),
         "server_time": now_msk().strftime("%Y-%m-%d %H:%M:%S")
     })
 
@@ -595,7 +520,26 @@ async def list_accounts():
     return JSONResponse({"accounts": result})
 
 
-# ============== Iframe ==============
+@app.get("/api/whoami")
+async def whoami(request: Request):
+    """Показывает какой аккаунт определился для текущего запроса"""
+    acc = await resolve_account(request)
+    
+    return JSONResponse({
+        "resolved": bool(acc),
+        "account_id": acc.get("account_id") if acc else None,
+        "account_name": acc.get("account_name") if acc else None,
+        "request_params": {
+            "accountId": request.query_params.get("accountId", "НЕ ПЕРЕДАН")
+        },
+        "all_active_accounts": [
+            {"id": a["account_id"], "name": a.get("account_name")}
+            for a in get_all_active_accounts()
+        ]
+    })
+
+
+# ============== Iframe и виджеты ==============
 
 @app.get("/iframe", response_class=HTMLResponse)
 async def iframe_page(request: Request):
@@ -612,9 +556,10 @@ async def root():
     all_accounts = get_all_active_accounts()
     return {
         "app": "Накладные расходы",
-        "version": "4.1",
+        "version": "5.0",
+        "description": "Теперь с правильной идентификацией аккаунтов через accountId",
         "active_accounts": len(all_accounts),
-        "accounts": [a.get("account_name") for a in all_accounts],
+        "accounts": [{"id": a.get("account_id"), "name": a.get("account_name")} for a in all_accounts],
         "server_time": now_msk().strftime("%Y-%m-%d %H:%M:%S")
     }
 
@@ -625,7 +570,7 @@ async def health():
 
 
 @app.middleware("http")
-async def mw(request: Request, call_next):
+async def add_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Frame-Options"] = "ALLOWALL"
     response.headers["Content-Security-Policy"] = "frame-ancestors *"
