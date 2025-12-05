@@ -9,6 +9,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import httpx
+import jwt  # PyJWT
+import uuid
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -27,8 +29,15 @@ ACCOUNTS_FILE = DATA_DIR / "accounts.json"
 SETTINGS_FILE = DATA_DIR / "settings.json"
 CONTEXT_MAP_FILE = DATA_DIR / "context_map.json"
 
+# JSON API МоегоСклада
 BASE_API_URL = "https://api.moysklad.ru/api/remap/1.2"
 DICTIONARY_NAME = "Статьи накладных расходов"
+
+# Vendor API МоегоСклада
+VENDOR_BASE_URL = "https://apps-api.moysklad.ru/api/vendor/1.0"
+APP_UID = os.getenv("MS_APP_UID", "expenses-1-snjph.kulps")  # appUid решения
+APP_ID = os.getenv("MS_APP_ID", "b3e6c54d-d4b4-4694-9ee2-3701c3aea973")  # UUID приложения
+SECRET_KEY = os.getenv("MS_SECRET_KEY", "")  # Секрет из ЛК разработчика
 
 MSK = timezone(timedelta(hours=3))
 
@@ -125,7 +134,7 @@ def save_dictionary_id(account_id: str, dict_id: str):
     save_settings(settings)
 
 
-# ============== Маппинг contextKey → accountId (опционально) ==============
+# ============== Маппинг contextKey → accountId ==============
 
 def save_context_mapping(context_key: str, account_id: str):
     if not context_key or not account_id:
@@ -175,7 +184,77 @@ def get_account_id_from_context(context_key: str) -> Optional[str]:
     return account_id
 
 
-# ============== API МойСклад ==============
+# ============== JWT для Vendor API ==============
+
+def make_vendor_jwt() -> str:
+    """
+    Генерирует одноразовый JWT для Vendor API МоегоСклада.
+    sub = appUid, alg=HS256, jti=uuid, iat/exp по документации.
+    """
+    if not SECRET_KEY or not APP_UID:
+        raise RuntimeError("Не настроены MS_SECRET_KEY и/или MS_APP_UID")
+
+    now = int(datetime.utcnow().timestamp())
+    payload = {
+        "sub": APP_UID,
+        "iat": now,
+        "exp": now + 60 * 5,  # 5 минут
+        "jti": str(uuid.uuid4()),
+    }
+
+    token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+    return token
+
+
+async def ms_get_context_by_context_key(context_key: str) -> Optional[dict]:
+    """
+    Получаем контекст пользователя/аккаунта по contextKey через Vendor API.
+    Использует JWT на основе SECRET_KEY и APP_UID.
+    Ожидаем, что в ответе будет accountId.
+    """
+    if not context_key:
+        return None
+
+    if not APP_ID:
+        logger.error("❌ Не задан MS_APP_ID (UUID приложения), не могу вызвать Vendor context API")
+        return None
+
+    try:
+        token = make_vendor_jwt()
+    except Exception as e:
+        logger.error(f"❌ Не удалось сгенерировать JWT для Vendor API: {e}")
+        return None
+
+    url = f"{VENDOR_BASE_URL}/apps/{APP_ID}/context"
+    params = {"contextKey": context_key}
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept-Encoding": "gzip",
+    }
+
+    logger.info(f"🌐 Вызов Vendor context API: {url} ? contextKey={context_key[:20]}...")
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            resp = await client.get(url, headers=headers, params=params)
+        except Exception as e:
+            logger.error(f"❌ Ошибка запроса контекста Vendor API: {e}")
+            return None
+
+    try:
+        data = resp.json()
+    except Exception:
+        logger.error(f"❌ Не удалось распарсить JSON контекста: {resp.text[:500]}")
+        return None
+
+    if resp.status_code != 200:
+        logger.error(f"❌ Ошибка Vendor context API: {resp.status_code} {data}")
+        return None
+
+    logger.info(f"📥 Контекст от Vendor API по contextKey: {context_key[:20]}... -> {data}")
+    return data
+
+
+# ============== API МойСклад (JSON API) ==============
 
 async def ms_api(method: str, endpoint: str, token: str, data: dict = None) -> dict:
     url = f"{BASE_API_URL}{endpoint}"
@@ -214,8 +293,10 @@ async def resolve_account(request: Request) -> Optional[dict]:
     Строгая схема:
     1) Если явно передан accountId в query → используем его.
     2) Иначе пробуем contextKey → accountId из кеша.
-    3) Если в хранилище всего один активный аккаунт → используем его как fallback.
-    4) Если активных аккаунтов >1 и нет accountId/contextKey → возвращаем None.
+    3) Иначе пробуем получить accountId по contextKey через Vendor API (apps/{appId}/context)
+       и сразу сохраняем маппинг.
+    4) Если в хранилище всего один активный аккаунт → используем его как fallback.
+    5) Если активных аккаунтов >1 и ничего не определили → возвращаем None.
     """
     context_key = request.query_params.get("contextKey", "")
     account_id_hint = request.query_params.get("accountId", "")
@@ -246,7 +327,33 @@ async def resolve_account(request: Request) -> Optional[dict]:
             else:
                 logger.warning(f"⚠️ В кеше есть account_id {cached_account_id}, но аккаунт не найден")
 
-    # 3. Fallback: если активный аккаунт только один — используем его
+    # 3. Пробуем получить контекст через Vendor API по contextKey
+    if context_key:
+        ctx = await ms_get_context_by_context_key(context_key)
+        if ctx:
+            vendor_account_id = (
+                ctx.get("accountId")
+                or (ctx.get("account") or {}).get("id")
+                or ctx.get("accountUuid")
+            )
+            if vendor_account_id:
+                acc = get_account(vendor_account_id)
+                if acc and acc.get("status") == "active" and acc.get("access_token"):
+                    logger.info(
+                        f"✅ Аккаунт по Vendor context API: "
+                        f"{acc.get('account_name')} ({vendor_account_id})"
+                    )
+                    save_context_mapping(context_key, vendor_account_id)
+                    return acc
+                else:
+                    logger.warning(
+                        f"⚠️ Vendor context дал accountId {vendor_account_id}, "
+                        f"но в локальном хранилище этот аккаунт неактивен или без токена"
+                    )
+            else:
+                logger.warning(f"⚠️ В ответе Vendor context нет accountId: {ctx}")
+
+    # 4. Fallback: если активный аккаунт только один — используем его
     all_accounts = get_all_active_accounts()
     logger.info(f"📊 Активных аккаунтов: {len(all_accounts)}")
 
@@ -261,9 +368,9 @@ async def resolve_account(request: Request) -> Optional[dict]:
             save_context_mapping(context_key, acc["account_id"])
         return acc
 
-    # 4. Несколько активных аккаунтов и нет однозначного accountId/contextKey
+    # 5. Несколько активных аккаунтов и нет однозначного accountId/contextKey/VendorContext
     logger.error(
-        "❌ Несколько активных аккаунтов и нет однозначного accountId/contextKey. "
+        "❌ Несколько активных аккаунтов и нет однозначного accountId/contextKey/VendorContext. "
         "Возвращаем None, чтобы не использовать чужой токен."
     )
     return None
@@ -368,7 +475,7 @@ async def update_demand_overhead(token: str, demand_id: str, add_sum: float, cat
     return {"success": False, "error": str(result)}
 
 
-# ============== Vendor API ==============
+# ============== Vendor API входящие (активация/деактивация) ==============
 
 @app.put("/api/moysklad/vendor/1.0/apps/{app_id}/{account_id}")
 async def activate_app(app_id: str, account_id: str, request: Request):
@@ -379,7 +486,7 @@ async def activate_app(app_id: str, account_id: str, request: Request):
     logger.info(f"🟢 АКТИВАЦИЯ: {account_name} ({account_id})")
     logger.info("=" * 70)
 
-    token = None    # access_token от МойСклад
+    token = None    # access_token от МойСклад JSON API
     for acc in body.get("access", []):
         if acc.get("access_token"):
             token = acc["access_token"]
@@ -606,7 +713,7 @@ async def root():
     all_accounts = get_all_active_accounts()
     return {
         "app": "Накладные расходы",
-        "version": "5.2",
+        "version": "5.3",
         "active_accounts": len(all_accounts),
         "accounts": [a.get("account_name") for a in all_accounts],
         "server_time": now_msk().strftime("%Y-%m-%d %H:%M:%S")

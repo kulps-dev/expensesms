@@ -18,42 +18,16 @@
     </div>
     <script>
         var contextKey = new URLSearchParams(window.location.search).get('contextKey') || '';
-        var msAccountId = null;  // accountId от МойСклад
+        var msAccountId = null;  // не используется сейчас, но пусть будет
 
-        // Слушаем сообщения от МойСклад
-        window.addEventListener('message', function(e) {
-            console.log('📨 ВИДЖЕТ ПОЛУЧИЛ message:', e.origin, e.data);
-            var data = e.data;
-            if (!data || typeof data !== 'object') return;
-
-            // Попытка вытащить accountId из разных возможных мест
-            if (data.accountId) {
-                msAccountId = data.accountId;
-            } else if (data.params && data.params.accountId) {
-                msAccountId = data.params.accountId;
-            } else if (data.meta && data.meta.accountId) {
-                msAccountId = data.meta.accountId;
-            }
-
-            if (msAccountId) {
-                console.log('✅ accountId от МойСклад в виджете:', msAccountId);
-            }
-
-            // Старый протокол Open/OpenFeedback оставляем как есть
-            if (data.name === 'Open') {
-                window.parent.postMessage({
-                    name: 'OpenFeedback',
-                    correlationId: data.messageId
-                }, 'https://online.moysklad.ru');
-            }
-        });
+        console.log('🧩 Виджет загружен, contextKey =', contextKey || 'нет');
 
         document.getElementById('openBtn').addEventListener('click', function() {
-            var url = 'https://kulps.ru/expensesms/iframe?contextKey=' + encodeURIComponent(contextKey);
+            console.log('🖱 Клик по кнопке "Занести расходы"');
 
-            // Если есть msAccountId — добавляем в URL
-            if (msAccountId) {
-                url += '&accountId=' + encodeURIComponent(msAccountId);
+            var url = 'https://kulps.ru/expensesms/iframe';
+            if (contextKey) {
+                url += '?contextKey=' + encodeURIComponent(contextKey);
             }
 
             var w = 900;
@@ -61,12 +35,18 @@
             var left = (screen.width - w) / 2;
             var top = (screen.height - h) / 2;
             
-            window.open(
+            var win = window.open(
                 url,
                 'ExpensesPopup',
                 'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top +
                 ',scrollbars=yes,resizable=yes,toolbar=no,menubar=no'
             );
+
+            if (!win) {
+                console.log('⚠️ Не удалось открыть окно (pop-up заблокирован?)');
+            } else {
+                console.log('✅ Окно открыто с URL:', url);
+            }
         });
     </script>
 </body>
