@@ -34,16 +34,18 @@
         });
         
         document.getElementById('openBtn').addEventListener('click', function() {
-            // Исправленный URL с /expensesms
             var url = 'https://kulps.ru/expensesms/iframe?contextKey=' + encodeURIComponent(contextKey);
             var w = 900;
             var h = 700;
             var left = (screen.width - w) / 2;
             var top = (screen.height - h) / 2;
             
-            window.open(url, 'ExpensesPopup', 
-                'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top + 
-                ',scrollbars=yes,resizable=yes,toolbar=no,menubar=no');
+            window.open(
+                url,
+                'ExpensesPopup',
+                'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top +
+                ',scrollbars=yes,resizable=yes,toolbar=no,menubar=no'
+            );
         });
     </script>
 </body>
