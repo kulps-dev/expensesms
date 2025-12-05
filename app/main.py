@@ -125,7 +125,7 @@ def save_dictionary_id(account_id: str, dict_id: str):
     save_settings(settings)
 
 
-# ============== Маппинг contextKey → accountId (опционально) ==============
+# ============== Маппинг contextKey → accountId ==============
 
 def save_context_mapping(context_key: str, account_id: str):
     if not context_key or not account_id:
@@ -212,9 +212,10 @@ async def ms_api(method: str, endpoint: str, token: str, data: dict = None) -> d
 async def resolve_account(request: Request) -> Optional[dict]:
     """
     1) Если явно передан accountId в query → используем его (главный механизм).
-    2) Иначе пробуем contextKey → accountId из кеша.
-    3) Если активный аккаунт всего один → используем его как fallback.
-    4) Если активных несколько и нет accountId → возвращаем None.
+    2) Иначе пытаемся найти по contextKey в кеше.
+    3) Если кеша нет, но есть активные аккаунты — БЕРЁМ ТОТ, КТО БЫЛ АКТИВИРОВАН ПОСЛЕДНИМ,
+       и сразу сохраняем маппинг contextKey → этот accountId.
+       (Так каждый contextKey закрепится за одним аккаунтом навсегда.)
     """
     context_key = request.query_params.get("contextKey", "")
     account_id_hint = request.query_params.get("accountId", "")
@@ -223,7 +224,7 @@ async def resolve_account(request: Request) -> Optional[dict]:
     logger.info(f"   contextKey: {context_key[:30] + '...' if context_key else 'нет'}")
     logger.info(f"   accountId hint: {account_id_hint or 'нет'}")
 
-    # 1. Прямой accountId из query (основной механизм)
+    # 1. Прямой accountId
     if account_id_hint:
         acc = get_account(account_id_hint)
         if acc and acc.get("status") == "active" and acc.get("access_token"):
@@ -234,7 +235,7 @@ async def resolve_account(request: Request) -> Optional[dict]:
         else:
             logger.warning(f"⚠️ Hint accountId {account_id_hint} неактивен или нет токена")
 
-    # 2. contextKey → accountId из кеша (если когда-то сохраняли)
+    # 2. contextKey → accountId из кеша
     if context_key:
         cached_account_id = get_account_id_from_context(context_key)
         if cached_account_id:
@@ -245,27 +246,24 @@ async def resolve_account(request: Request) -> Optional[dict]:
             else:
                 logger.warning(f"⚠️ В кеше есть account_id {cached_account_id}, но аккаунт не найден")
 
-    # 3. Fallback: если активный аккаунт всего один — используем его
+    # 3. Автопривязка: если кеша нет, но есть активные аккаунты
     all_accounts = get_all_active_accounts()
     logger.info(f"📊 Активных аккаунтов: {len(all_accounts)}")
 
     if len(all_accounts) == 0:
-        logger.error("❌ Нет активных аккаунтов")
+        logger.error("❌ Нет активных аккаунтов вообще")
         return None
 
-    if len(all_accounts) == 1:
-        acc = all_accounts[0]
-        logger.info(f"✅ Единственный активный аккаунт: {acc.get('account_name')} ({acc.get('account_id')})")
-        if context_key:
-            save_context_mapping(context_key, acc["account_id"])
-        return acc
-
-    # 4. Если их несколько и нет accountId в запросе — не рискуем
-    logger.error(
-        "❌ Несколько активных аккаунтов и нет однозначного accountId/contextKey. "
-        "Вернём None, чтобы не использовать чужой токен."
+    # сортируем по времени активации, берём последний
+    all_accounts.sort(key=lambda x: x.get("activated_at", ""), reverse=True)
+    acc = all_accounts[0]
+    logger.warning(
+        f"⚠️ contextKey ещё не привязан, используем последний активированный аккаунт: "
+        f"{acc.get('account_name')} ({acc.get('account_id')})"
     )
-    return None
+    if context_key:
+        save_context_mapping(context_key, acc["account_id"])
+    return acc
 
 
 # ============== Справочник ==============
@@ -341,7 +339,7 @@ async def update_demand_overhead(token: str, demand_id: str, add_sum: float, cat
 
     new_overhead = current_overhead + int(add_sum * 100)
 
-    timestamp = now_msk().strftime("%d.%m.%Y %H:%M")
+    timestamp = now_msk().strftime("%d.%m.%Y %H:%М")
     new_comment = f"[{timestamp}] +{add_sum:.2f} руб - {category}"
     current_desc = demand.get("description") or ""
     new_desc = f"{current_desc}\n{new_comment}".strip()
@@ -378,7 +376,7 @@ async def activate_app(app_id: str, account_id: str, request: Request):
     logger.info(f"🟢 АКТИВАЦИЯ: {account_name} ({account_id})")
     logger.info("=" * 70)
 
-    token = None    # access_token от МойСклад
+    token = None
     for acc in body.get("access", []):
         if acc.get("access_token"):
             token = acc["access_token"]
@@ -605,7 +603,7 @@ async def root():
     all_accounts = get_all_active_accounts()
     return {
         "app": "Накладные расходы",
-        "version": "5.0",
+        "version": "5.1",
         "active_accounts": len(all_accounts),
         "accounts": [a.get("account_name") for a in all_accounts],
         "server_time": now_msk().strftime("%Y-%m-%d %H:%M:%S")
