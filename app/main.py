@@ -12,6 +12,9 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import httpx
+import jwt
+import uuid
+import time
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -191,6 +194,21 @@ def get_account_id_from_context(context_key: str) -> Optional[str]:
 
 # ============== Получение контекста из МойСклад API ==============
 
+def generate_jwt_token() -> str:
+    """Генерация JWT токена для Vendor API МойСклад"""
+    now = int(time.time())
+    
+    payload = {
+        "sub": "expenses.kulps",  # appUid вашего приложения
+        "iat": now,
+        "exp": now + 300,  # 5 минут
+        "jti": str(uuid.uuid4())  # уникальный ID токена
+    }
+    
+    token = jwt.encode(payload, APP_SECRET, algorithm="HS256")
+    return token
+
+
 async def get_context_from_moysklad(context_key: str) -> Optional[dict]:
     """Получить контекст пользователя из МойСклад по contextKey"""
     if not context_key:
@@ -202,38 +220,32 @@ async def get_context_from_moysklad(context_key: str) -> Optional[dict]:
     
     url = f"{VENDOR_API_BASE}/context/{context_key}"
     
+    # Генерируем JWT токен
+    jwt_token = generate_jwt_token()
+    
     headers = {
         "Accept-Encoding": "gzip",
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {APP_SECRET}"  # Используем секрет как Bearer токен
+        "Authorization": f"Bearer {jwt_token}"
     }
     
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
-            logger.info(f"📡 Запрос контекста: {url[:50]}...")
+            logger.info(f"📡 Запрос контекста: {url[:60]}...")
+            logger.info(f"🔐 JWT: {jwt_token[:50]}...")
             
-            # POST запрос
+            # POST запрос с пустым телом
             resp = await client.post(url, headers=headers, json={})
             
-            logger.info(f"📡 Ответ POST: {resp.status_code}")
+            logger.info(f"📡 Ответ: {resp.status_code}")
             
             if resp.status_code == 200:
                 data = resp.json()
-                logger.info(f"✅ Контекст: {json.dumps(data, ensure_ascii=False)[:300]}")
+                logger.info(f"✅ Контекст получен! accountId: {data.get('accountId')}")
                 return data
-            
-            # Если POST не сработал, пробуем GET
-            resp = await client.get(url, headers=headers)
-            
-            logger.info(f"📡 Ответ GET: {resp.status_code}")
-            
-            if resp.status_code == 200:
-                data = resp.json()
-                logger.info(f"✅ Контекст: {json.dumps(data, ensure_ascii=False)[:300]}")
-                return data
-            
-            logger.warning(f"⚠️ Ошибка: {resp.status_code} - {resp.text[:300]}")
-            return None
+            else:
+                logger.warning(f"⚠️ Ошибка: {resp.status_code} - {resp.text[:300]}")
+                return None
                 
         except Exception as e:
             logger.error(f"❌ Ошибка запроса: {e}")
