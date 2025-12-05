@@ -18,14 +18,14 @@
     </div>
     <script>
         var contextKey = new URLSearchParams(window.location.search).get('contextKey') || '';
-        var msAccountId = null;  // accountId из МойСклад
+        var msAccountId = null;  // accountId от МойСклад
 
         // Слушаем сообщения от МойСклад
         window.addEventListener('message', function(e) {
             var data = e.data;
             if (!data || typeof data !== 'object') return;
 
-            // МойСклад присылает accountId в разных форматах, подстрахуемся
+            // МойСклад в новых приложениях шлёт accountId в data.accountId
             if (data.accountId) {
                 msAccountId = data.accountId;
                 console.log('✅ accountId от МойСклад в виджете:', msAccountId);
@@ -43,7 +43,7 @@
         document.getElementById('openBtn').addEventListener('click', function() {
             var url = 'https://kulps.ru/expensesms/iframe?contextKey=' + encodeURIComponent(contextKey);
 
-            // Если у нас есть accountId от МойСклад — обязательно добавляем его в URL
+            // ВАЖНО: если в виджет прилетел accountId, добавляем в URL
             if (msAccountId) {
                 url += '&accountId=' + encodeURIComponent(msAccountId);
             }
