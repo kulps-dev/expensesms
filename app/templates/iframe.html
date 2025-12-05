@@ -199,9 +199,19 @@
         
         const urlParams = new URLSearchParams(window.location.search);
         const contextKey = urlParams.get('contextKey') || '';
-        
-        // ВАЖНО: без /expensesms - FastAPI сам добавит root_path
-        const API_BASE = '/api';
+
+        // ВАЖНО: именно так
+        const API_BASE = '/expensesms/api';
+
+        function apiUrl(endpoint) {
+            let url = `${API_BASE}${endpoint}`;
+            const sep = url.includes('?') ? '&' : '?';
+            url += `${sep}contextKey=${encodeURIComponent(contextKey)}`;
+            if (resolvedAccountId) {
+                url += `&accountId=${encodeURIComponent(resolvedAccountId)}`;
+            }
+            return url;
+        }
         
         const accountBadge = document.getElementById('accountBadge');
         const mainContent = document.getElementById('mainContent');
