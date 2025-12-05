@@ -18,23 +18,36 @@
     </div>
     <script>
         var contextKey = new URLSearchParams(window.location.search).get('contextKey') || '';
-        var correlationId = null;
-        
+        var msAccountId = null;  // accountId из МойСклад
+
+        // Слушаем сообщения от МойСклад
         window.addEventListener('message', function(e) {
             var data = e.data;
             if (!data || typeof data !== 'object') return;
-            
+
+            // МойСклад присылает accountId в разных форматах, подстрахуемся
+            if (data.accountId) {
+                msAccountId = data.accountId;
+                console.log('✅ accountId от МойСклад в виджете:', msAccountId);
+            }
+
+            // Старый протокол Open/OpenFeedback оставляем как есть
             if (data.name === 'Open') {
-                correlationId = data.messageId;
                 window.parent.postMessage({
                     name: 'OpenFeedback',
-                    correlationId: correlationId
+                    correlationId: data.messageId
                 }, 'https://online.moysklad.ru');
             }
         });
-        
+
         document.getElementById('openBtn').addEventListener('click', function() {
             var url = 'https://kulps.ru/expensesms/iframe?contextKey=' + encodeURIComponent(contextKey);
+
+            // Если у нас есть accountId от МойСклад — обязательно добавляем его в URL
+            if (msAccountId) {
+                url += '&accountId=' + encodeURIComponent(msAccountId);
+            }
+
             var w = 900;
             var h = 700;
             var left = (screen.width - w) / 2;

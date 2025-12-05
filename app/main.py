@@ -143,7 +143,6 @@ def save_context_mapping(context_key: str, account_id: str):
         "created_at": now_msk().isoformat()
     }
 
-    # ограничиваем размер кеша
     if len(data["map"]) > 10000:
         sorted_keys = sorted(
             data["map"].keys(),
@@ -212,10 +211,10 @@ async def ms_api(method: str, endpoint: str, token: str, data: dict = None) -> d
 
 async def resolve_account(request: Request) -> Optional[dict]:
     """
-    1) Если явно передан accountId в query → используем его
-    2) Иначе ищем по contextKey в кеше
-    3) Если аккаунт один — используем его (для старых/нестандартных вызовов)
-    4) Если их несколько и нет маппинга → возвращаем None
+    Основная схема:
+    1) Если явно передан accountId в query → используем его (это наш главный способ).
+    2) Иначе пробуем contextKey → accountId из кеша.
+    3) Если в хранилище всего один активный аккаунт → используем его (fallback).
     """
     context_key = request.query_params.get("contextKey", "")
     account_id_hint = request.query_params.get("accountId", "")
@@ -224,7 +223,7 @@ async def resolve_account(request: Request) -> Optional[dict]:
     logger.info(f"   contextKey: {context_key[:30] + '...' if context_key else 'нет'}")
     logger.info(f"   accountId hint: {account_id_hint or 'нет'}")
 
-    # 1. Прямой hint accountId
+    # 1. Прямой accountId из query (основной механизм)
     if account_id_hint:
         acc = get_account(account_id_hint)
         if acc and acc.get("status") == "active" and acc.get("access_token"):
@@ -244,17 +243,16 @@ async def resolve_account(request: Request) -> Optional[dict]:
                 logger.info(f"✅ Аккаунт из кеша по contextKey: {acc.get('account_name')} ({cached_account_id})")
                 return acc
             else:
-                logger.warning(f"⚠️ В кеше есть account_id {cached_account_id}, но аккаунт не найден в хранилище")
+                logger.warning(f"⚠️ В кеше есть account_id {cached_account_id}, но аккаунт не найден")
 
-    # 3. Получаем список активных аккаунтов
+    # 3. Fallback: если активный аккаунт всего один — используем его
     all_accounts = get_all_active_accounts()
     logger.info(f"📊 Активных аккаунтов: {len(all_accounts)}")
 
     if len(all_accounts) == 0:
-        logger.error("❌ Нет активных аккаунтов вообще")
+        logger.error("❌ Нет активных аккаунтов")
         return None
 
-    # Если всего один активный аккаунт — используем его
     if len(all_accounts) == 1:
         acc = all_accounts[0]
         logger.info(f"✅ Единственный активный аккаунт: {acc.get('account_name')} ({acc.get('account_id')})")
@@ -262,10 +260,10 @@ async def resolve_account(request: Request) -> Optional[dict]:
             save_context_mapping(context_key, acc["account_id"])
         return acc
 
-    # Несколько активных аккаунтов и нет однозначного маппинга
+    # Если их несколько и нет accountId в запросе — не рискуем
     logger.error(
-        "❌ Несколько активных аккаунтов и нет однозначного contextKey/accountId. "
-        "Чтобы не перепутать токены, возвращаем None."
+        "❌ Несколько активных аккаунтов и нет однозначного accountId/contextKey. "
+        "Вернём None, чтобы не использовать чужой токен."
     )
     return None
 
@@ -380,7 +378,7 @@ async def activate_app(app_id: str, account_id: str, request: Request):
     logger.info(f"🟢 АКТИВАЦИЯ: {account_name} ({account_id})")
     logger.info("=" * 70)
 
-    token = None
+    token = None    # access_token от МойСклад
     for acc in body.get("access", []):
         if acc.get("access_token"):
             token = acc["access_token"]
@@ -423,7 +421,6 @@ async def deactivate_app(app_id: str, account_id: str, request: Request):
         acc["deactivated_at"] = now_msk().isoformat()
         save_account(account_id, acc)
 
-    # удаляем маппинги contextKey для этого аккаунта
     context_map = load_context_map()
     keys_to_remove = [k for k, v in context_map.get("map", {}).items()
                       if v.get("account_id") == account_id]
@@ -440,35 +437,6 @@ async def get_status(app_id: str, account_id: str):
     acc = get_account(account_id)
     status = "Activated" if acc and acc.get("status") == "active" else "SettingsRequired"
     return JSONResponse({"status": status})
-
-
-# ============== API для привязки контекста ==============
-
-@app.post("/api/bind-context")
-async def bind_context(request: Request):
-    body = await request.json()
-    context_key = body.get("contextKey", "")
-    account_id = body.get("accountId", "")
-
-    logger.info(f"📌 bind-context: contextKey={context_key[:20]}..., accountId={account_id}")
-
-    if not context_key or not account_id:
-        return JSONResponse({"success": False, "error": "contextKey и accountId обязательны"})
-
-    acc = get_account(account_id)
-    if not acc:
-        return JSONResponse({"success": False, "error": f"Аккаунт {account_id} не найден"})
-
-    if acc.get("status") != "active" or not acc.get("access_token"):
-        return JSONResponse({"success": False, "error": "Аккаунт не активен или нет токена"})
-
-    save_context_mapping(context_key, account_id)
-
-    return JSONResponse({
-        "success": True,
-        "accountId": account_id,
-        "accountName": acc.get("account_name")
-    })
 
 
 # ============== API приложения ==============
