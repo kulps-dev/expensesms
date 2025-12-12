@@ -7,13 +7,13 @@
         body { padding: 10px 16px; font-family: Arial, sans-serif; font-size: 14px; }
         .row { display: flex; align-items: center; justify-content: space-between; }
         .label { color: #333; }
-        .btn { background: #4caf50; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; }
-        .btn:hover { background: #388e3c; }
+        .btn { background: #ff9800; color: #fff; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+        .btn:hover { background: #f57c00; }
     </style>
 </head>
 <body>
     <div class="row">
-        <span class="label">📦 Накладные расходы</span>
+        <span class="label">🔄 Накладные расходы</span>
         <button class="btn" id="openBtn">Занести расходы</button>
     </div>
     <script>
@@ -32,7 +32,7 @@
         });
         
         document.getElementById('openBtn').addEventListener('click', function() {
-            var url = 'https://kulps.ru/expensesms/iframe?docType=demand&' + 
+            var url = 'https://kulps.ru/expensesms/iframe?docType=move&' + 
                 'contextKey=' + encodeURIComponent(contextKey) +
                 '&appId=' + encodeURIComponent(appId) +
                 '&appUid=' + encodeURIComponent(appUid);

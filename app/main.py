@@ -1,16 +1,16 @@
-# main.py - ВЕРСИЯ v6.1 с расширенными логами и сохранением настроек
+# main.py - ВЕРСИЯ v7.0
+# Поддержка: Отгрузки, Приёмки, Перемещения
+# Автосоздание статей из Excel, Telegram уведомления, точный поиск
 
 import os
 import json
 import logging
-import base64
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 from pathlib import Path
-import asyncio
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import httpx
 import jwt
@@ -21,15 +21,11 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 ROOT_PATH = os.getenv("ROOT_PATH", "/expensesms")
-
 APP_ID = os.getenv("APP_ID", "")
 APP_SECRET = os.getenv("APP_SECRET", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 
-app = FastAPI(
-    title="Накладные расходы - МойСклад",
-    root_path=ROOT_PATH
-)
+app = FastAPI(title="Накладные расходы - МойСклад", root_path=ROOT_PATH)
 templates = Jinja2Templates(directory="templates")
 
 DATA_DIR = Path("/app/data")
@@ -115,16 +111,14 @@ def save_user_settings(data):
     save_json(USER_SETTINGS_FILE, data)
 
 
-# ============== Настройки пользователя (Telegram username) ==============
+# ============== Настройки пользователя ==============
 
 def get_user_telegram(account_id: str) -> str:
-    """Получить сохранённый Telegram username для аккаунта"""
     settings = load_user_settings()
     return settings.get("users", {}).get(account_id, {}).get("telegram_username", "")
 
 
 def save_user_telegram(account_id: str, telegram_username: str):
-    """Сохранить Telegram username для аккаунта"""
     settings = load_user_settings()
     if "users" not in settings:
         settings["users"] = {}
@@ -133,7 +127,6 @@ def save_user_telegram(account_id: str, telegram_username: str):
     settings["users"][account_id]["telegram_username"] = telegram_username
     settings["users"][account_id]["updated_at"] = now_msk().isoformat()
     save_user_settings(settings)
-    logger.info(f"💾 Сохранён Telegram: {telegram_username} для {account_id}")
 
 
 # ============== Аккаунты ==============
@@ -187,7 +180,7 @@ def save_dictionary_id(account_id: str, dict_id: str):
     save_settings(settings)
 
 
-# ============== Telegram Users ==============
+# ============== Telegram ==============
 
 def get_telegram_chat_id(username: str) -> Optional[int]:
     users = load_telegram_users()
@@ -207,24 +200,25 @@ def save_telegram_user(username: str, chat_id: int):
     save_telegram_users(users)
 
 
-# ============== Логирование в файл ==============
+# ============== Класс логирования ==============
 
 class ProcessingLog:
-    """Класс для ведения логов обработки"""
-    
-    def __init__(self, account_id: str, account_name: str, year: int, category: str):
+    def __init__(self, account_id: str, account_name: str, year: int, category: str, doc_type: str = "demand"):
         self.account_id = account_id
         self.account_name = account_name
         self.year = year
         self.category = category
+        self.doc_type = doc_type
         self.started_at = now_msk()
         self.lines = []
         self.results = []
         self.errors = []
         
-        # Создаём файл лога
+        doc_type_names = {'demand': 'Отгрузки', 'supply': 'Приёмки', 'move': 'Перемещения'}
+        self.doc_type_name = doc_type_names.get(doc_type, 'Документы')
+        
         timestamp = self.started_at.strftime("%Y%m%d_%H%M%S")
-        self.log_filename = f"log_{account_id[:8]}_{timestamp}.txt"
+        self.log_filename = f"log_{account_id[:8]}_{doc_type}_{timestamp}.txt"
         self.log_path = LOGS_DIR / self.log_filename
         
         self._write_header()
@@ -236,7 +230,8 @@ class ProcessingLog:
             "=" * 70,
             f"Дата/время начала: {self.started_at.strftime('%d.%m.%Y %H:%M:%S')}",
             f"Аккаунт: {self.account_name}",
-            f"Год отгрузок: {self.year}",
+            f"Тип документов: {self.doc_type_name}",
+            f"Год: {self.year}",
             f"Статья расходов: {self.category}",
             "=" * 70,
             "",
@@ -252,33 +247,31 @@ class ProcessingLog:
         self.lines.append(line)
         logger.info(message)
     
-    def log_success(self, demand_number: str, expense: float, total: float):
+    def log_success(self, doc_number: str, expense: float, total: float):
         self.results.append({
-            "demandNumber": demand_number,
+            "docNumber": doc_number,
             "added": expense,
             "total": total
         })
-        self.log(f"✅ {demand_number} — добавлено {expense:,.2f} ₽ (итого: {total:,.2f} ₽)")
+        self.log(f"✅ {doc_number} — добавлено {expense:,.2f} ₽ (итого: {total:,.2f} ₽)")
     
-    def log_error(self, demand_number: str, expense: float, error: str):
+    def log_error(self, doc_number: str, expense: float, error: str):
         self.errors.append({
-            "demandNumber": demand_number,
+            "docNumber": doc_number,
             "expense": expense,
             "error": error
         })
-        self.log(f"❌ {demand_number} — ОШИБКА: {error}")
+        self.log(f"❌ {doc_number} — ОШИБКА: {error}")
     
-    def log_search(self, demand_number: str, found: bool, details: str = ""):
+    def log_search(self, doc_number: str, found: bool, details: str = ""):
         if found:
-            self.log(f"🔍 {demand_number} — найдена {details}")
+            self.log(f"🔍 {doc_number} — найден {details}")
         else:
-            self.log(f"🔍 {demand_number} — НЕ НАЙДЕНА {details}")
+            self.log(f"🔍 {doc_number} — НЕ НАЙДЕН {details}")
     
     def finalize(self) -> str:
-        """Завершить лог и вернуть полный текст"""
         ended_at = now_msk()
         duration = (ended_at - self.started_at).total_seconds()
-        
         total_sum = sum(r.get("added", 0) for r in self.results)
         
         footer = [
@@ -299,35 +292,27 @@ class ProcessingLog:
             footer.append("УСПЕШНЫЕ ЗАПИСИ:")
             footer.append("-" * 40)
             for r in self.results:
-                footer.append(f"  {r['demandNumber']}: +{r['added']:,.2f} ₽")
+                footer.append(f"  {r['docNumber']}: +{r['added']:,.2f} ₽")
         
         if self.errors:
             footer.append("")
             footer.append("ОШИБКИ:")
             footer.append("-" * 40)
             for e in self.errors:
-                footer.append(f"  {e['demandNumber']}: {e['error']}")
+                footer.append(f"  {e['docNumber']}: {e['error']}")
         
-        footer.extend([
-            "",
-            "=" * 70,
-            "КОНЕЦ ОТЧЁТА",
-            "=" * 70,
-        ])
+        footer.extend(["", "=" * 70, "КОНЕЦ ОТЧЁТА", "=" * 70])
         
         self.lines.extend(footer)
         self._flush()
-        
         return "\n".join(self.lines)
     
     def _flush(self):
-        """Записать в файл"""
         ensure_data_dir()
         with open(self.log_path, 'w', encoding='utf-8') as f:
             f.write("\n".join(self.lines))
     
     def get_telegram_report(self) -> str:
-        """Получить краткий отчёт для Telegram"""
         ended_at = now_msk()
         duration = (ended_at - self.started_at).total_seconds()
         total_sum = sum(r.get("added", 0) for r in self.results)
@@ -336,6 +321,7 @@ class ProcessingLog:
             f"📊 <b>Отчёт по накладным расходам</b>",
             f"",
             f"📦 Аккаунт: {self.account_name}",
+            f"📄 Тип: {self.doc_type_name}",
             f"📅 Год: {self.year}",
             f"📝 Статья: {self.category}",
             f"⏱ Время: {duration:.1f} сек",
@@ -348,9 +334,8 @@ class ProcessingLog:
             report.append(f"✅ <b>Успешно: {len(self.results)}</b>")
             report.append(f"💰 Сумма: {total_sum:,.2f} ₽")
             report.append(f"")
-            # Показываем первые 15
             for r in self.results[:15]:
-                report.append(f"  • {r['demandNumber']} — {r['added']:,.2f} ₽")
+                report.append(f"  • {r['docNumber']} — {r['added']:,.2f} ₽")
             if len(self.results) > 15:
                 report.append(f"  ... и ещё {len(self.results) - 15}")
         
@@ -360,7 +345,7 @@ class ProcessingLog:
             report.append(f"")
             for e in self.errors[:20]:
                 error_short = e['error'][:50] + "..." if len(e['error']) > 50 else e['error']
-                report.append(f"  • {e['demandNumber']}")
+                report.append(f"  • {e['docNumber']}")
                 report.append(f"    └ {error_short}")
             if len(self.errors) > 20:
                 report.append(f"  ... и ещё {len(self.errors) - 20}")
@@ -369,13 +354,6 @@ class ProcessingLog:
         report.append(f"⏰ {ended_at.strftime('%d.%m.%Y %H:%M:%S')}")
         
         return "\n".join(report)
-    
-    def get_log_file_content(self) -> str:
-        """Получить содержимое файла лога"""
-        if self.log_path.exists():
-            with open(self.log_path, 'r', encoding='utf-8') as f:
-                return f.read()
-        return "\n".join(self.lines)
 
 
 # ============== Telegram Bot ==============
@@ -400,7 +378,6 @@ async def send_telegram_message(chat_id: int, text: str, parse_mode: str = "HTML
 
 
 async def send_telegram_document(chat_id: int, file_content: str, filename: str, caption: str = ""):
-    """Отправить текстовый файл в Telegram"""
     if not TELEGRAM_BOT_TOKEN or not chat_id:
         return False
     
@@ -408,13 +385,8 @@ async def send_telegram_document(chat_id: int, file_content: str, filename: str,
     
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
-            files = {
-                'document': (filename, file_content.encode('utf-8'), 'text/plain')
-            }
-            data = {
-                'chat_id': chat_id,
-                'caption': caption
-            }
+            files = {'document': (filename, file_content.encode('utf-8'), 'text/plain')}
+            data = {'chat_id': chat_id, 'caption': caption}
             resp = await client.post(url, data=data, files=files)
             return resp.status_code == 200
         except Exception as e:
@@ -425,71 +397,56 @@ async def send_telegram_document(chat_id: int, file_content: str, filename: str,
 async def notify_user_by_username(username: str, text: str):
     if not username:
         return False
-    
     chat_id = get_telegram_chat_id(username)
     if not chat_id:
         logger.warning(f"⚠️ Telegram: @{username} не зарегистрирован")
         return False
-    
     return await send_telegram_message(chat_id, text)
 
 
 async def send_log_file_to_user(username: str, log_content: str, filename: str):
-    """Отправить файл лога пользователю"""
     if not username:
         return False
-    
     chat_id = get_telegram_chat_id(username)
     if not chat_id:
         return False
-    
     return await send_telegram_document(chat_id, log_content, filename, "📄 Полный лог обработки")
 
 
-# ============== Маппинг contextKey ==============
+# ============== Context Mapping ==============
 
 def save_context_mapping(context_key: str, account_id: str):
     if not context_key or not account_id:
         return
-    
     acc = get_account(account_id)
     if not acc or acc.get("status") != "active":
         return
-    
     data = load_context_map()
     data["map"][context_key] = {
         "account_id": account_id,
         "account_name": acc.get("account_name", ""),
         "created_at": now_msk().isoformat()
     }
-    
     if len(data["map"]) > 10000:
-        sorted_keys = sorted(data["map"].keys(),
-                             key=lambda k: data["map"][k].get("created_at", ""))
+        sorted_keys = sorted(data["map"].keys(), key=lambda k: data["map"][k].get("created_at", ""))
         for k in sorted_keys[:len(sorted_keys) - 10000]:
             del data["map"][k]
-    
     save_context_map(data)
 
 
 def get_account_id_from_context(context_key: str) -> Optional[str]:
     if not context_key:
         return None
-    
     data = load_context_map()
     mapping = data.get("map", {}).get(context_key)
-    
     if not mapping:
         return None
-    
     account_id = mapping.get("account_id")
     acc = get_account(account_id)
-    
     if not acc or acc.get("status") != "active" or not acc.get("access_token"):
         del data["map"][context_key]
         save_context_map(data)
         return None
-    
     return account_id
 
 
@@ -509,16 +466,13 @@ def generate_jwt_token() -> str:
 async def get_context_from_moysklad(context_key: str) -> Optional[dict]:
     if not context_key or not APP_SECRET:
         return None
-    
     url = f"{VENDOR_API_BASE}/context/{context_key}"
     jwt_token = generate_jwt_token()
-    
     headers = {
         "Accept-Encoding": "gzip",
         "Content-Type": "application/json",
         "Authorization": f"Bearer {jwt_token}"
     }
-    
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             resp = await client.post(url, headers=headers, json={})
@@ -538,7 +492,6 @@ async def ms_api(method: str, endpoint: str, token: str, data: dict = None) -> d
         "Content-Type": "application/json",
         "Accept-Encoding": "gzip"
     }
-    
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
             if method == "GET":
@@ -549,19 +502,17 @@ async def ms_api(method: str, endpoint: str, token: str, data: dict = None) -> d
                 resp = await client.put(url, headers=headers, json=data)
             else:
                 return {"_error": "Unknown method"}
-            
             try:
                 result = resp.json()
             except:
                 result = {"_text": resp.text[:1000]}
-            
             result["_status"] = resp.status_code
             return result
         except Exception as e:
             return {"_error": str(e), "_status": 0}
 
 
-# ============== Определение аккаунта ==============
+# ============== Resolve Account ==============
 
 async def resolve_account(request: Request) -> Optional[dict]:
     context_key = request.query_params.get("contextKey", "")
@@ -611,7 +562,7 @@ async def resolve_account(request: Request) -> Optional[dict]:
     return None
 
 
-# ============== Справочник ==============
+# ============== Справочник статей ==============
 
 async def ensure_dictionary(token: str, account_id: str) -> Optional[str]:
     dict_id = get_dictionary_id(account_id)
@@ -647,68 +598,84 @@ async def add_expense_category(token: str, dict_id: str, name: str) -> Optional[
     return None
 
 
-# ============== Поиск отгрузок (ТОЧНЫЙ) ==============
+# ============== Поиск документов ==============
 
-async def search_demand_exact(token: str, name: str, year: int, log: ProcessingLog) -> dict:
-    """Точный поиск отгрузки по номеру и году"""
+async def search_document_exact(token: str, doc_type: str, name: str, year: int, log: ProcessingLog) -> dict:
+    """Точный поиск документа по номеру и году"""
     date_from = f"{year}-01-01 00:00:00"
     date_to = f"{year}-12-31 23:59:59"
     
-    log.log(f"🔍 Поиск: '{name}' за {year} год...")
+    doc_endpoints = {
+        'demand': '/entity/demand',
+        'supply': '/entity/supply',
+        'move': '/entity/move'
+    }
+    doc_names = {
+        'demand': 'Отгрузка',
+        'supply': 'Приёмка',
+        'move': 'Перемещение'
+    }
+    
+    endpoint_base = doc_endpoints.get(doc_type, '/entity/demand')
+    doc_name_ru = doc_names.get(doc_type, 'Документ')
+    
+    log.log(f"🔍 Поиск {doc_name_ru}: '{name}' за {year} год...")
     
     # Точный поиск
-    endpoint = f"/entity/demand?filter=name={name};moment>{date_from};moment<{date_to}"
+    endpoint = f"{endpoint_base}?filter=name={name};moment>{date_from};moment<{date_to}"
     r = await ms_api("GET", endpoint, token)
     
     if r.get("_status") == 200 and r.get("rows"):
         for row in r["rows"]:
             if row.get("name") == name:
                 log.log_search(name, True, f"(ID: {row.get('id')[:8]}...)")
-                return {"found": True, "demand": row}
+                return {"found": True, "document": row}
         
         similar = [row.get("name") for row in r["rows"][:5]]
         log.log_search(name, False, f"| Похожие: {', '.join(similar)}")
-        return {
-            "found": False, 
-            "error": f"Точное совпадение не найдено. Похожие: {', '.join(similar)}"
-        }
+        return {"found": False, "error": f"Точное совпадение не найдено. Похожие: {', '.join(similar)}"}
     
     # Поиск с ~
-    endpoint2 = f"/entity/demand?filter=name~{name};moment>{date_from};moment<{date_to}"
+    endpoint2 = f"{endpoint_base}?filter=name~{name};moment>{date_from};moment<{date_to}"
     r2 = await ms_api("GET", endpoint2, token)
     
     if r2.get("_status") == 200 and r2.get("rows"):
         for row in r2["rows"]:
             if row.get("name") == name:
                 log.log_search(name, True, f"(ID: {row.get('id')[:8]}...)")
-                return {"found": True, "demand": row}
+                return {"found": True, "document": row}
         
         similar = [row.get("name") for row in r2["rows"][:5]]
         log.log_search(name, False, f"| Похожие: {', '.join(similar)}")
-        return {
-            "found": False, 
-            "error": f"Точное совпадение не найдено. Похожие: {', '.join(similar)}"
-        }
+        return {"found": False, "error": f"Точное совпадение не найдено. Похожие: {', '.join(similar)}"}
     
     log.log_search(name, False, f"| Ничего не найдено за {year} год")
-    return {"found": False, "error": f"Отгрузка не найдена за {year} год"}
+    return {"found": False, "error": f"{doc_name_ru} не найден за {year} год"}
 
 
-async def update_demand_overhead(token: str, demand_id: str, add_sum: float, category: str, log: ProcessingLog) -> dict:
-    demand = await ms_api("GET", f"/entity/demand/{demand_id}", token)
-    if demand.get("_status") != 200:
-        return {"success": False, "error": "Отгрузка не найдена"}
+async def update_document_overhead(token: str, doc_type: str, doc_id: str, add_sum: float, category: str, log: ProcessingLog) -> dict:
+    """Обновить накладные расходы документа"""
+    doc_endpoints = {
+        'demand': '/entity/demand',
+        'supply': '/entity/supply',
+        'move': '/entity/move'
+    }
+    endpoint_base = doc_endpoints.get(doc_type, '/entity/demand')
     
-    demand_name = demand.get("name", "")
+    document = await ms_api("GET", f"{endpoint_base}/{doc_id}", token)
+    if document.get("_status") != 200:
+        return {"success": False, "error": "Документ не найден"}
+    
+    doc_name = document.get("name", "")
     current_overhead = 0
-    overhead_data = demand.get("overhead")
+    overhead_data = document.get("overhead")
     if overhead_data and overhead_data.get("sum"):
         current_overhead = overhead_data.get("sum", 0)
     
     new_overhead = current_overhead + int(add_sum * 100)
     timestamp = now_msk().strftime("%d.%m.%Y %H:%M")
     new_comment = f"[{timestamp}] +{add_sum:.2f} руб - {category}"
-    current_desc = demand.get("description") or ""
+    current_desc = document.get("description") or ""
     new_desc = f"{current_desc}\n{new_comment}".strip()
     
     update_data = {
@@ -716,12 +683,12 @@ async def update_demand_overhead(token: str, demand_id: str, add_sum: float, cat
         "overhead": {"sum": new_overhead, "distribution": "price"}
     }
     
-    log.log(f"📝 Обновление {demand_name}: +{add_sum:.2f} ₽ (было: {current_overhead/100:.2f} ₽)")
+    log.log(f"📝 Обновление {doc_name}: +{add_sum:.2f} ₽ (было: {current_overhead/100:.2f} ₽)")
     
-    result = await ms_api("PUT", f"/entity/demand/{demand_id}", token, update_data)
+    result = await ms_api("PUT", f"{endpoint_base}/{doc_id}", token, update_data)
     
     if result.get("_status") == 200:
-        return {"success": True, "demand_name": demand_name, "added": add_sum, "total": new_overhead / 100}
+        return {"success": True, "doc_name": doc_name, "added": add_sum, "total": new_overhead / 100}
     
     return {"success": False, "error": str(result)}
 
@@ -732,7 +699,6 @@ async def update_demand_overhead(token: str, demand_id: str, add_sum: float, cat
 async def activate_app(app_id: str, account_id: str, request: Request):
     body = await request.json()
     account_name = body.get("accountName", "")
-    
     logger.info(f"🟢 АКТИВАЦИЯ: {account_name} ({account_id})")
     
     token = None
@@ -760,9 +726,7 @@ async def activate_app(app_id: str, account_id: str, request: Request):
 @app.delete("/api/moysklad/vendor/1.0/apps/{app_id}/{account_id}")
 async def deactivate_app(app_id: str, account_id: str, request: Request):
     body = await request.json()
-    account_name = body.get("accountName", "")
-    
-    logger.info(f"🔴 ДЕАКТИВАЦИЯ: {account_name} ({account_id})")
+    logger.info(f"🔴 ДЕАКТИВАЦИЯ: {body.get('accountName', '')} ({account_id})")
     
     acc = get_account(account_id)
     if acc:
@@ -772,8 +736,7 @@ async def deactivate_app(app_id: str, account_id: str, request: Request):
         save_account(account_id, acc)
     
     context_map = load_context_map()
-    keys_to_remove = [k for k, v in context_map.get("map", {}).items()
-                      if v.get("account_id") == account_id]
+    keys_to_remove = [k for k, v in context_map.get("map", {}).items() if v.get("account_id") == account_id]
     for k in keys_to_remove:
         del context_map["map"][k]
     save_context_map(context_map)
@@ -795,7 +758,6 @@ async def telegram_webhook(request: Request):
     try:
         data = await request.json()
         message = data.get("message", {})
-        
         if not message:
             return JSONResponse({"ok": True})
         
@@ -807,7 +769,7 @@ async def telegram_webhook(request: Request):
             if username:
                 save_telegram_user(username, chat_id)
                 await send_telegram_message(
-                    chat_id, 
+                    chat_id,
                     f"✅ <b>Вы зарегистрированы!</b>\n\n"
                     f"Ваш username: @{username}\n\n"
                     f"Теперь вы будете получать:\n"
@@ -855,15 +817,13 @@ async def api_get_categories(request: Request):
         return JSONResponse({"categories": [], "error": "Не удалось создать справочник"})
     
     categories = await get_expense_categories(token, dict_id)
-    
-    # Получаем сохранённый Telegram username
     saved_telegram = get_user_telegram(account_id)
     
     return JSONResponse({
         "categories": categories,
         "accountId": account_id,
         "accountName": acc.get("account_name"),
-        "savedTelegram": saved_telegram  # Отправляем сохранённый username
+        "savedTelegram": saved_telegram
     })
 
 
@@ -893,7 +853,6 @@ async def api_add_category(request: Request):
 
 @app.post("/api/save-telegram")
 async def api_save_telegram(request: Request):
-    """Сохранить Telegram username для пользователя"""
     body = await request.json()
     telegram_username = body.get("telegramUsername", "").strip()
     
@@ -902,7 +861,6 @@ async def api_save_telegram(request: Request):
         return JSONResponse({"success": False, "error": "Аккаунт не определён"}, status_code=400)
     
     save_user_telegram(acc["account_id"], telegram_username)
-    
     return JSONResponse({"success": True})
 
 
@@ -913,6 +871,7 @@ async def process_expenses(request: Request):
     category = body.get("category", "Накладные расходы")
     year = body.get("year", now_msk().year)
     telegram_username = body.get("telegramUsername", "")
+    doc_type = body.get("docType", "demand")
     
     acc = await resolve_account(request)
     if not acc or not acc.get("access_token"):
@@ -922,28 +881,62 @@ async def process_expenses(request: Request):
     account_id = acc["account_id"]
     account_name = acc.get("account_name", "")
     
-    # Сохраняем Telegram username
+    doc_type_names = {'demand': 'Отгрузки', 'supply': 'Приёмки', 'move': 'Перемещения'}
+    doc_type_name = doc_type_names.get(doc_type, 'Документы')
+    
     if telegram_username:
         save_user_telegram(account_id, telegram_username)
     
-    logger.info(f"📊 Обработка {len(expenses)} расходов для {account_name}, год: {year}")
+    logger.info(f"📊 Обработка {len(expenses)} ({doc_type_name}) для {account_name}, год: {year}")
     
-    # Создаём лог
-    proc_log = ProcessingLog(account_id, account_name, year, category)
-    proc_log.log(f"Начало обработки {len(expenses)} записей")
+    # Справочник для создания статей
+    dict_id = await ensure_dictionary(token, account_id)
+    
+    # Собираем статьи из данных
+    categories_to_create = set()
+    for item in expenses:
+        item_category = item.get("category")
+        if item_category:
+            categories_to_create.add(item_category.strip())
+    
+    # Существующие статьи
+    existing_categories = await get_expense_categories(token, dict_id) if dict_id else []
+    existing_names = {c["name"].lower() for c in existing_categories}
+    
+    # Лог
+    proc_log = ProcessingLog(account_id, account_name, year, category, doc_type)
+    proc_log.log(f"Начало обработки {len(expenses)} записей ({doc_type_name})")
+    
+    # Создаём новые статьи
+    new_categories_created = []
+    for cat_name in categories_to_create:
+        if cat_name.lower() not in existing_names:
+            proc_log.log(f"📝 Создание статьи: '{cat_name}'")
+            result = await add_expense_category(token, dict_id, cat_name)
+            if result:
+                new_categories_created.append(cat_name)
+                existing_names.add(cat_name.lower())
+                proc_log.log(f"✅ Статья '{cat_name}' создана")
+            else:
+                proc_log.log(f"⚠️ Не удалось создать статью '{cat_name}'")
+    
+    if new_categories_created:
+        proc_log.log(f"📚 Создано новых статей: {len(new_categories_created)}")
     
     # Уведомление о начале
     if telegram_username:
-        await notify_user_by_username(
-            telegram_username,
-            f"🚀 <b>Начато разнесение накладных расходов</b>\n\n"
-            f"📦 Аккаунт: {account_name}\n"
-            f"📅 Год: {year}\n"
-            f"📝 Статья: {category}\n"
-            f"📊 Записей: {len(expenses)}\n\n"
-            f"⏳ Пожалуйста, подождите..."
-        )
+        start_msg = f"🚀 <b>Начато разнесение накладных расходов</b>\n\n"
+        start_msg += f"📦 Аккаунт: {account_name}\n"
+        start_msg += f"📄 Тип: {doc_type_name}\n"
+        start_msg += f"📅 Год: {year}\n"
+        start_msg += f"📝 Статья: {category}\n"
+        start_msg += f"📊 Записей: {len(expenses)}\n"
+        if new_categories_created:
+            start_msg += f"📚 Новых статей: {len(new_categories_created)}\n"
+        start_msg += f"\n⏳ Пожалуйста, подождите..."
+        await notify_user_by_username(telegram_username, start_msg)
     
+    # Обработка
     for idx, item in enumerate(expenses, 1):
         num = item.get("demandNumber", "").strip()
         val = float(item.get("expense", 0))
@@ -953,33 +946,36 @@ async def process_expenses(request: Request):
             continue
         
         proc_log.log(f"")
-        proc_log.log(f"[{idx}/{len(expenses)}] Обработка: {num} — {val:,.2f} ₽")
+        proc_log.log(f"[{idx}/{len(expenses)}] {num} — {val:,.2f} ₽ ({item_category})")
         
-        # Точный поиск
-        search_result = await search_demand_exact(token, num, year, proc_log)
+        search_result = await search_document_exact(token, doc_type, num, year, proc_log)
         
         if not search_result["found"]:
-            proc_log.log_error(num, val, search_result.get("error", "Не найдена"))
+            proc_log.log_error(num, val, search_result.get("error", "Не найден"))
             continue
         
-        demand = search_result["demand"]
-        r = await update_demand_overhead(token, demand["id"], val, item_category, proc_log)
+        document = search_result["document"]
+        r = await update_document_overhead(token, doc_type, document["id"], val, item_category, proc_log)
         
         if r["success"]:
             proc_log.log_success(num, val, r.get("total", 0))
         else:
             proc_log.log_error(num, val, r.get("error", "Ошибка обновления"))
     
-    # Завершаем лог
+    # Финализация
     full_log = proc_log.finalize()
     
-    # Отправляем в Telegram
+    # Telegram отчёт
     if telegram_username:
-        # Краткий отчёт
         telegram_report = proc_log.get_telegram_report()
-        await notify_user_by_username(telegram_username, telegram_report)
+        if new_categories_created:
+            telegram_report += f"\n\n📚 <b>Созданы статьи:</b>\n"
+            for nc in new_categories_created[:10]:
+                telegram_report += f"  • {nc}\n"
+            if len(new_categories_created) > 10:
+                telegram_report += f"  ... и ещё {len(new_categories_created) - 10}"
         
-        # Файл с полным логом
+        await notify_user_by_username(telegram_username, telegram_report)
         await send_log_file_to_user(telegram_username, full_log, proc_log.log_filename)
     
     return JSONResponse({
@@ -990,32 +986,25 @@ async def process_expenses(request: Request):
         "errorDetails": proc_log.errors,
         "accountName": account_name,
         "year": year,
-        "logFile": proc_log.log_filename
+        "docType": doc_type,
+        "logFile": proc_log.log_filename,
+        "newCategories": new_categories_created
     })
 
 
 @app.get("/api/check-telegram")
 async def check_telegram(request: Request):
     username = request.query_params.get("username", "").lstrip("@")
-    
     if not username:
         return JSONResponse({"registered": False, "error": "Username не указан"})
-    
     chat_id = get_telegram_chat_id(username)
-    
-    return JSONResponse({
-        "registered": chat_id is not None,
-        "username": username
-    })
+    return JSONResponse({"registered": chat_id is not None, "username": username})
 
-
-# ============== Отладка ==============
 
 @app.get("/api/debug")
 async def debug(request: Request):
     all_accounts = get_all_active_accounts()
     telegram_users = load_telegram_users()
-    
     return JSONResponse({
         "all_active_accounts": [{"id": a.get("account_id"), "name": a.get("account_name")} for a in all_accounts],
         "total_active": len(all_accounts),
@@ -1053,14 +1042,24 @@ async def widget_demand(request: Request):
     return templates.TemplateResponse("widget_demand.html", {"request": request})
 
 
+@app.get("/widget-supply", response_class=HTMLResponse)
+async def widget_supply(request: Request):
+    return templates.TemplateResponse("widget_supply.html", {"request": request})
+
+
+@app.get("/widget-move", response_class=HTMLResponse)
+async def widget_move(request: Request):
+    return templates.TemplateResponse("widget_move.html", {"request": request})
+
+
 @app.get("/")
 async def root():
     all_accounts = get_all_active_accounts()
     return {
         "app": "Накладные расходы",
-        "version": "6.1",
+        "version": "7.0",
         "active_accounts": len(all_accounts),
-        "features": ["year_filter", "telegram_notifications", "exact_match", "category_from_excel", "log_files"]
+        "features": ["demand", "supply", "move", "telegram", "auto_categories", "exact_match", "year_filter"]
     }
 
 
