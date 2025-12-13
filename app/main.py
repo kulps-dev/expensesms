@@ -1,6 +1,7 @@
-# main.py - ВЕРСИЯ v7.0
+# main.py - ВЕРСИЯ v7.1
 # Поддержка: Отгрузки, Приёмки, Перемещения
 # Автосоздание статей из Excel, Telegram уведомления, точный поиск
+# Выбор валюты для комментариев
 
 import os
 import json
@@ -42,9 +43,30 @@ DICTIONARY_NAME = "Статьи накладных расходов"
 
 MSK = timezone(timedelta(hours=3))
 
+# Символы валют для отображения
+CURRENCY_SYMBOLS = {
+    'руб': '₽',
+    'USD': '$',
+    'EUR': '€',
+    'CNY': '¥',
+    'KZT': '₸',
+    'BYN': 'Br',
+    'UAH': '₴',
+    'UZS': 'сум',
+    'GEL': '₾',
+    'AMD': '֏',
+    'TRY': '₺',
+    'AED': 'د.إ'
+}
+
 
 def now_msk() -> datetime:
     return datetime.now(MSK)
+
+
+def get_currency_symbol(currency: str) -> str:
+    """Получить символ валюты"""
+    return CURRENCY_SYMBOLS.get(currency, currency)
 
 
 # ============== Хранилище ==============
@@ -203,12 +225,15 @@ def save_telegram_user(username: str, chat_id: int):
 # ============== Класс логирования ==============
 
 class ProcessingLog:
-    def __init__(self, account_id: str, account_name: str, year: int, category: str, doc_type: str = "demand"):
+    def __init__(self, account_id: str, account_name: str, year: int, category: str, 
+                 doc_type: str = "demand", currency: str = "руб"):
         self.account_id = account_id
         self.account_name = account_name
         self.year = year
         self.category = category
         self.doc_type = doc_type
+        self.currency = currency
+        self.currency_symbol = get_currency_symbol(currency)
         self.started_at = now_msk()
         self.lines = []
         self.results = []
@@ -233,6 +258,7 @@ class ProcessingLog:
             f"Тип документов: {self.doc_type_name}",
             f"Год: {self.year}",
             f"Статья расходов: {self.category}",
+            f"Валюта: {self.currency} ({self.currency_symbol})",
             "=" * 70,
             "",
             "ЖУРНАЛ ОБРАБОТКИ:",
@@ -253,7 +279,7 @@ class ProcessingLog:
             "added": expense,
             "total": total
         })
-        self.log(f"✅ {doc_number} — добавлено {expense:,.2f} ₽ (итого: {total:,.2f} ₽)")
+        self.log(f"✅ {doc_number} — добавлено {expense:,.2f} {self.currency} (итого: {total:,.2f} {self.currency})")
     
     def log_error(self, doc_number: str, expense: float, error: str):
         self.errors.append({
@@ -283,7 +309,7 @@ class ProcessingLog:
             f"Длительность: {duration:.1f} сек",
             "",
             f"✅ Успешно разнесено: {len(self.results)} записей",
-            f"💰 Общая сумма: {total_sum:,.2f} ₽",
+            f"💰 Общая сумма: {total_sum:,.2f} {self.currency}",
             f"❌ Ошибок: {len(self.errors)} записей",
             "",
         ]
@@ -292,7 +318,7 @@ class ProcessingLog:
             footer.append("УСПЕШНЫЕ ЗАПИСИ:")
             footer.append("-" * 40)
             for r in self.results:
-                footer.append(f"  {r['docNumber']}: +{r['added']:,.2f} ₽")
+                footer.append(f"  {r['docNumber']}: +{r['added']:,.2f} {self.currency}")
         
         if self.errors:
             footer.append("")
@@ -324,6 +350,7 @@ class ProcessingLog:
             f"📄 Тип: {self.doc_type_name}",
             f"📅 Год: {self.year}",
             f"📝 Статья: {self.category}",
+            f"💱 Валюта: {self.currency} ({self.currency_symbol})",
             f"⏱ Время: {duration:.1f} сек",
             f"",
             f"━━━━━━━━━━━━━━━━━━━━━━",
@@ -332,10 +359,10 @@ class ProcessingLog:
         if self.results:
             report.append(f"")
             report.append(f"✅ <b>Успешно: {len(self.results)}</b>")
-            report.append(f"💰 Сумма: {total_sum:,.2f} ₽")
+            report.append(f"💰 Сумма: {total_sum:,.2f} {self.currency}")
             report.append(f"")
             for r in self.results[:15]:
-                report.append(f"  • {r['docNumber']} — {r['added']:,.2f} ₽")
+                report.append(f"  • {r['docNumber']} — {r['added']:,.2f} {self.currency}")
             if len(self.results) > 15:
                 report.append(f"  ... и ещё {len(self.results) - 15}")
         
@@ -653,7 +680,8 @@ async def search_document_exact(token: str, doc_type: str, name: str, year: int,
     return {"found": False, "error": f"{doc_name_ru} не найден за {year} год"}
 
 
-async def update_document_overhead(token: str, doc_type: str, doc_id: str, add_sum: float, category: str, log: ProcessingLog) -> dict:
+async def update_document_overhead(token: str, doc_type: str, doc_id: str, add_sum: float, 
+                                    category: str, log: ProcessingLog, currency: str = "руб") -> dict:
     """Обновить накладные расходы документа"""
     doc_endpoints = {
         'demand': '/entity/demand',
@@ -674,7 +702,10 @@ async def update_document_overhead(token: str, doc_type: str, doc_id: str, add_s
     
     new_overhead = current_overhead + int(add_sum * 100)
     timestamp = now_msk().strftime("%d.%m.%Y %H:%M")
-    new_comment = f"[{timestamp}] +{add_sum:.2f} руб - {category}"
+    
+    # Используем переданную валюту в комментарии
+    new_comment = f"[{timestamp}] +{add_sum:.2f} {currency} - {category}"
+    
     current_desc = document.get("description") or ""
     new_desc = f"{current_desc}\n{new_comment}".strip()
     
@@ -683,7 +714,7 @@ async def update_document_overhead(token: str, doc_type: str, doc_id: str, add_s
         "overhead": {"sum": new_overhead, "distribution": "price"}
     }
     
-    log.log(f"📝 Обновление {doc_name}: +{add_sum:.2f} ₽ (было: {current_overhead/100:.2f} ₽)")
+    log.log(f"📝 Обновление {doc_name}: +{add_sum:.2f} {currency} (было: {current_overhead/100:.2f} {currency})")
     
     result = await ms_api("PUT", f"{endpoint_base}/{doc_id}", token, update_data)
     
@@ -864,6 +895,15 @@ async def api_save_telegram(request: Request):
     return JSONResponse({"success": True})
 
 
+@app.get("/api/check-telegram")
+async def check_telegram(request: Request):
+    username = request.query_params.get("username", "").lstrip("@")
+    if not username:
+        return JSONResponse({"registered": False, "error": "Username не указан"})
+    chat_id = get_telegram_chat_id(username)
+    return JSONResponse({"registered": chat_id is not None, "username": username})
+
+
 @app.post("/api/process-expenses")
 async def process_expenses(request: Request):
     body = await request.json()
@@ -872,6 +912,7 @@ async def process_expenses(request: Request):
     year = body.get("year", now_msk().year)
     telegram_username = body.get("telegramUsername", "")
     doc_type = body.get("docType", "demand")
+    currency = body.get("currency", "руб")  # Получаем валюту из запроса
     
     acc = await resolve_account(request)
     if not acc or not acc.get("access_token"):
@@ -887,7 +928,7 @@ async def process_expenses(request: Request):
     if telegram_username:
         save_user_telegram(account_id, telegram_username)
     
-    logger.info(f"📊 Обработка {len(expenses)} ({doc_type_name}) для {account_name}, год: {year}")
+    logger.info(f"📊 Обработка {len(expenses)} ({doc_type_name}) для {account_name}, год: {year}, валюта: {currency}")
     
     # Справочник для создания статей
     dict_id = await ensure_dictionary(token, account_id)
@@ -903,9 +944,10 @@ async def process_expenses(request: Request):
     existing_categories = await get_expense_categories(token, dict_id) if dict_id else []
     existing_names = {c["name"].lower() for c in existing_categories}
     
-    # Лог
-    proc_log = ProcessingLog(account_id, account_name, year, category, doc_type)
+    # Лог с валютой
+    proc_log = ProcessingLog(account_id, account_name, year, category, doc_type, currency)
     proc_log.log(f"Начало обработки {len(expenses)} записей ({doc_type_name})")
+    proc_log.log(f"Валюта: {currency} ({get_currency_symbol(currency)})")
     
     # Создаём новые статьи
     new_categories_created = []
@@ -925,11 +967,13 @@ async def process_expenses(request: Request):
     
     # Уведомление о начале
     if telegram_username:
+        currency_symbol = get_currency_symbol(currency)
         start_msg = f"🚀 <b>Начато разнесение накладных расходов</b>\n\n"
         start_msg += f"📦 Аккаунт: {account_name}\n"
         start_msg += f"📄 Тип: {doc_type_name}\n"
         start_msg += f"📅 Год: {year}\n"
         start_msg += f"📝 Статья: {category}\n"
+        start_msg += f"💱 Валюта: {currency} ({currency_symbol})\n"
         start_msg += f"📊 Записей: {len(expenses)}\n"
         if new_categories_created:
             start_msg += f"📚 Новых статей: {len(new_categories_created)}\n"
@@ -946,7 +990,7 @@ async def process_expenses(request: Request):
             continue
         
         proc_log.log(f"")
-        proc_log.log(f"[{idx}/{len(expenses)}] {num} — {val:,.2f} ₽ ({item_category})")
+        proc_log.log(f"[{idx}/{len(expenses)}] {num} — {val:,.2f} {currency} ({item_category})")
         
         search_result = await search_document_exact(token, doc_type, num, year, proc_log)
         
@@ -955,7 +999,7 @@ async def process_expenses(request: Request):
             continue
         
         document = search_result["document"]
-        r = await update_document_overhead(token, doc_type, document["id"], val, item_category, proc_log)
+        r = await update_document_overhead(token, doc_type, document["id"], val, item_category, proc_log, currency)
         
         if r["success"]:
             proc_log.log_success(num, val, r.get("total", 0))
@@ -987,18 +1031,10 @@ async def process_expenses(request: Request):
         "accountName": account_name,
         "year": year,
         "docType": doc_type,
+        "currency": currency,
         "logFile": proc_log.log_filename,
         "newCategories": new_categories_created
     })
-
-
-@app.get("/api/check-telegram")
-async def check_telegram(request: Request):
-    username = request.query_params.get("username", "").lstrip("@")
-    if not username:
-        return JSONResponse({"registered": False, "error": "Username не указан"})
-    chat_id = get_telegram_chat_id(username)
-    return JSONResponse({"registered": chat_id is not None, "username": username})
 
 
 @app.get("/api/debug")
@@ -1010,7 +1046,8 @@ async def debug(request: Request):
         "total_active": len(all_accounts),
         "telegram_users_count": len(telegram_users.get("users", {})),
         "telegram_bot_configured": bool(TELEGRAM_BOT_TOKEN),
-        "server_time": now_msk().strftime("%Y-%m-%d %H:%M:%S")
+        "server_time": now_msk().strftime("%Y-%m-%d %H:%M:%S"),
+        "supported_currencies": list(CURRENCY_SYMBOLS.keys())
     })
 
 
@@ -1028,6 +1065,26 @@ async def list_accounts():
             "telegram": saved_tg
         })
     return JSONResponse({"accounts": result})
+
+
+@app.get("/api/currencies")
+async def get_currencies():
+    """Получить список поддерживаемых валют"""
+    currencies = [
+        {"code": "руб", "symbol": "₽", "name": "Российский рубль"},
+        {"code": "USD", "symbol": "$", "name": "Доллар США"},
+        {"code": "EUR", "symbol": "€", "name": "Евро"},
+        {"code": "CNY", "symbol": "¥", "name": "Китайский юань"},
+        {"code": "KZT", "symbol": "₸", "name": "Казахстанский тенге"},
+        {"code": "BYN", "symbol": "Br", "name": "Белорусский рубль"},
+        {"code": "UAH", "symbol": "₴", "name": "Украинская гривна"},
+        {"code": "UZS", "symbol": "сум", "name": "Узбекский сум"},
+        {"code": "GEL", "symbol": "₾", "name": "Грузинский лари"},
+        {"code": "AMD", "symbol": "֏", "name": "Армянский драм"},
+        {"code": "TRY", "symbol": "₺", "name": "Турецкая лира"},
+        {"code": "AED", "symbol": "د.إ", "name": "Дирхам ОАЭ"},
+    ]
+    return JSONResponse({"currencies": currencies})
 
 
 # ============== Страницы ==============
@@ -1057,9 +1114,15 @@ async def root():
     all_accounts = get_all_active_accounts()
     return {
         "app": "Накладные расходы",
-        "version": "7.0",
+        "version": "7.1",
         "active_accounts": len(all_accounts),
-        "features": ["demand", "supply", "move", "telegram", "auto_categories", "exact_match", "year_filter"]
+        "features": [
+            "demand", "supply", "move", 
+            "telegram", "auto_categories", 
+            "exact_match", "year_filter",
+            "multi_currency"
+        ],
+        "supported_currencies": list(CURRENCY_SYMBOLS.keys())
     }
 
 

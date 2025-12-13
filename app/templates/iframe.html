@@ -106,7 +106,7 @@
         }
         .settings-item {
             flex: 1;
-            min-width: 200px;
+            min-width: 160px;
         }
         .settings-item label {
             display: block;
@@ -444,6 +444,16 @@
             border-radius: 4px;
             margin-left: 4px;
         }
+        
+        .currency-badge {
+            display: inline-block;
+            background: #f3e5f5;
+            color: #7b1fa2;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 8px;
+        }
     </style>
 </head>
 <body>
@@ -484,6 +494,23 @@
                 <div class="settings-item">
                     <label for="yearSelect">📅 Год документов</label>
                     <select id="yearSelect" class="year-select"></select>
+                </div>
+                <div class="settings-item">
+                    <label for="currencySelect">💱 Валюта</label>
+                    <select id="currencySelect" class="year-select">
+                        <option value="руб" selected>₽ Рубли (руб)</option>
+                        <option value="USD">$ Доллары (USD)</option>
+                        <option value="EUR">€ Евро (EUR)</option>
+                        <option value="CNY">¥ Юани (CNY)</option>
+                        <option value="KZT">₸ Тенге (KZT)</option>
+                        <option value="BYN">Br Бел. рубли (BYN)</option>
+                        <option value="UAH">₴ Гривны (UAH)</option>
+                        <option value="UZS">сум Сумы (UZS)</option>
+                        <option value="GEL">₾ Лари (GEL)</option>
+                        <option value="AMD">֏ Драмы (AMD)</option>
+                        <option value="TRY">₺ Лиры (TRY)</option>
+                        <option value="AED">د.إ Дирхамы (AED)</option>
+                    </select>
                 </div>
                 <div class="settings-item">
                     <label for="telegramInput">📱 Telegram для уведомлений</label>
@@ -540,7 +567,7 @@
             <!-- Предпросмотр -->
             <div class="preview-section">
                 <div class="preview-header">
-                    <span class="preview-title">Предпросмотр</span>
+                    <span class="preview-title">Предпросмотр <span id="currencyBadge" class="currency-badge">₽ руб</span></span>
                     <span id="previewCount" class="preview-count">0 записей</span>
                 </div>
                 <div id="previewEmpty" class="preview-empty">
@@ -603,6 +630,22 @@
             'move': { name: 'Перемещения', icon: '🔄', color: 'move', btnText: '✓ Разнести в перемещения' }
         };
         
+        // Символы валют
+        const currencySymbols = {
+            'руб': '₽',
+            'USD': '$',
+            'EUR': '€',
+            'CNY': '¥',
+            'KZT': '₸',
+            'BYN': 'Br',
+            'UAH': '₴',
+            'UZS': 'сум',
+            'GEL': '₾',
+            'AMD': '֏',
+            'TRY': '₺',
+            'AED': 'د.إ'
+        };
+        
         const API_BASE = '/expensesms/api';
         
         // ============== DOM элементы ==============
@@ -611,6 +654,8 @@
         const docTypeSection = document.getElementById('docTypeSection');
         const mainContent = document.getElementById('mainContent');
         const yearSelect = document.getElementById('yearSelect');
+        const currencySelect = document.getElementById('currencySelect');
+        const currencyBadge = document.getElementById('currencyBadge');
         const telegramInput = document.getElementById('telegramInput');
         const telegramStatus = document.getElementById('telegramStatus');
         const telegramSaved = document.getElementById('telegramSaved');
@@ -639,6 +684,7 @@
             setupYearSelect();
             setupEventListeners();
             updateUIForDocType();
+            updateCurrencyBadge();
             await loadCategories();
         }
         
@@ -669,6 +715,16 @@
             processBtnText.textContent = config.btnText;
             processBtn.classList.remove('demand', 'supply', 'move');
             processBtn.classList.add(config.color);
+        }
+        
+        function updateCurrencyBadge() {
+            const currency = currencySelect.value;
+            const symbol = currencySymbols[currency] || currency;
+            currencyBadge.textContent = `${symbol} ${currency}`;
+        }
+        
+        function getCurrentCurrencySymbol() {
+            return currencySymbols[currencySelect.value] || currencySelect.value;
         }
         
         function setupYearSelect() {
@@ -789,6 +845,12 @@
             // Кнопки действий
             clearBtn.addEventListener('click', clearData);
             processBtn.addEventListener('click', processExpenses);
+            
+            // Выбор валюты
+            currencySelect.addEventListener('change', () => {
+                updateCurrencyBadge();
+                renderPreview();
+            });
             
             // Telegram с debounce
             telegramInput.addEventListener('input', (e) => {
@@ -986,6 +1048,7 @@
             
             const validCount = parsedData.filter(d => d.isValid).length;
             const defaultCategory = getDefaultCategory();
+            const currencySymbol = getCurrentCurrencySymbol();
             
             // Считаем новые статьи
             const existingNames = new Set(categories.map(c => c.name.toLowerCase()));
@@ -1033,7 +1096,7 @@
                             </span>
                         </td>
                         <td class="expense-col">
-                            ${item.expense.toLocaleString('ru-RU', {minimumFractionDigits: 2})} ₽
+                            ${item.expense.toLocaleString('ru-RU', {minimumFractionDigits: 2})} ${currencySymbol}
                         </td>
                         <td class="category-col">
                             ${escapeHtml(displayCategory)} ${badgeHtml}
@@ -1070,6 +1133,7 @@
             const year = parseInt(yearSelect.value);
             const telegramUsername = telegramInput.value.trim();
             const defaultCategory = getDefaultCategory() || 'Накладные расходы';
+            const currency = currencySelect.value;
             const config = docTypeConfig[selectedDocType];
             
             loader.classList.add('show');
@@ -1090,7 +1154,8 @@
                         category: defaultCategory,
                         year: year,
                         telegramUsername: telegramUsername,
-                        docType: selectedDocType
+                        docType: selectedDocType,
+                        currency: currency
                     })
                 });
                 
