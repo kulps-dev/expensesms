@@ -42,11 +42,24 @@
         .account-badge.loading { background: #fff3e0; color: #e65100; }
         
         /* Выбор типа документа */
+        .doc-type-section {
+            margin-bottom: 24px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border: 1px solid #e0e0e0;
+        }
+        .doc-type-section-title {
+            text-align: center;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 16px;
+            font-size: 15px;
+        }
         .doc-type-selector {
             display: flex;
             gap: 12px;
             justify-content: center;
-            margin-bottom: 24px;
             flex-wrap: wrap;
         }
         .doc-type-btn {
@@ -77,24 +90,13 @@
             border-color: #ff9800;
             background: #fff3e0;
         }
-        .doc-type-btn .icon {
-            font-size: 32px;
-            margin-bottom: 8px;
-        }
-        .doc-type-btn .label {
-            font-weight: 600;
-            color: #333;
-            font-size: 14px;
-        }
-        .doc-type-btn .hint {
-            font-size: 11px;
-            color: #888;
-            margin-top: 4px;
-        }
+        .doc-type-btn .icon { font-size: 32px; margin-bottom: 8px; }
+        .doc-type-btn .label { font-weight: 600; color: #333; font-size: 14px; }
+        .doc-type-btn .hint { font-size: 11px; color: #888; margin-top: 4px; }
         
         .input-section { margin-bottom: 24px; }
         .input-label { display: block; font-weight: 600; margin-bottom: 8px; color: #333; font-size: 15px; }
-        .input-hint { font-size: 13px; color: #888; margin-bottom: 12px; }
+        .input-hint { font-size: 13px; color: #888; margin-bottom: 12px; line-height: 1.5; }
         
         .settings-row {
             display: flex;
@@ -142,23 +144,99 @@
             color: #4caf50;
         }
         
-        .category-wrapper { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-        .category-select-wrapper { position: relative; flex: 1; max-width: 350px; }
+        /* Категория с кнопками */
+        .category-wrapper { 
+            display: flex; 
+            gap: 8px; 
+            align-items: center; 
+            margin-bottom: 8px; 
+        }
+        .category-select-wrapper {
+            position: relative;
+            flex: 1;
+            max-width: 400px;
+        }
         .category-input {
             width: 100%;
-            padding: 12px 16px;
+            padding: 12px 70px 12px 16px;
             border: 2px solid #ddd;
             border-radius: 8px;
             font-size: 15px;
         }
-        .category-input:focus { outline: none; border-color: #1976d2; }
+        .category-input:focus { 
+            outline: none; 
+            border-color: #1976d2; 
+        }
+        .category-input::placeholder {
+            color: #999;
+            font-size: 12px;
+        }
+        
+        /* Кнопка очистки (крестик) */
+        .btn-clear-input {
+            position: absolute;
+            right: 38px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 22px;
+            height: 22px;
+            border: none;
+            background: #e0e0e0;
+            color: #666;
+            border-radius: 50%;
+            font-size: 16px;
+            font-weight: 400;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            line-height: 1;
+        }
+        .btn-clear-input:hover {
+            background: #f44336;
+            color: white;
+        }
+        .btn-clear-input.show {
+            display: flex;
+        }
+        
+        /* Кнопка выпадающего списка */
+        .btn-dropdown-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 24px;
+            height: 24px;
+            border: none;
+            background: #f0f0f0;
+            color: #666;
+            font-size: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .btn-dropdown-toggle:hover {
+            background: #1976d2;
+            color: white;
+        }
+        .btn-dropdown-toggle.open {
+            background: #1976d2;
+            color: white;
+        }
+        
         .category-dropdown {
             position: absolute;
-            top: 100%;
+            top: calc(100% + 4px);
             left: 0;
             right: 0;
             background: #fff;
-            border: 1px solid #ddd;
+            border: 2px solid #1976d2;
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             max-height: 200px;
@@ -167,9 +245,15 @@
             display: none;
         }
         .category-dropdown.show { display: block; }
-        .category-option { padding: 10px 16px; cursor: pointer; }
-        .category-option:hover { background: #f5f5f5; }
-        .category-empty { padding: 16px; text-align: center; color: #999; }
+        .category-option { 
+            padding: 10px 16px; 
+            cursor: pointer; 
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .category-option:last-child { border-bottom: none; }
+        .category-option:hover { background: #e3f2fd; }
+        .category-empty { padding: 16px; text-align: center; color: #999; font-size: 13px; }
+        
         .btn-add {
             width: 44px;
             height: 44px;
@@ -183,6 +267,7 @@
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
+            transition: all 0.2s;
         }
         .btn-add:hover { background: #4caf50; color: #fff; }
         .btn-add:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -197,7 +282,12 @@
             font-size: 14px;
             resize: vertical;
         }
-        .paste-area:focus { outline: none; border-color: #1976d2; background: #f8fbff; }
+        .paste-area:focus { 
+            outline: none; 
+            border-color: #1976d2; 
+            border-style: solid;
+            background: #f8fbff; 
+        }
         
         .format-hint {
             background: #f8f9fa;
@@ -215,10 +305,26 @@
         }
         
         .preview-section { margin-bottom: 24px; }
-        .preview-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .preview-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 12px; 
+        }
         .preview-title { font-weight: 600; color: #333; }
-        .preview-count { font-size: 13px; color: #666; background: #f0f0f0; padding: 4px 12px; border-radius: 12px; }
-        .preview-table-wrapper { max-height: 400px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 8px; }
+        .preview-count { 
+            font-size: 13px; 
+            color: #666; 
+            background: #f0f0f0; 
+            padding: 4px 12px; 
+            border-radius: 12px; 
+        }
+        .preview-table-wrapper { 
+            max-height: 400px; 
+            overflow-y: auto; 
+            border: 1px solid #e0e0e0; 
+            border-radius: 8px; 
+        }
         .preview-table { width: 100%; border-collapse: collapse; }
         .preview-table th { 
             background: #f5f5f5; 
@@ -231,7 +337,11 @@
             top: 0;
             font-size: 13px;
         }
-        .preview-table td { padding: 10px 16px; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+        .preview-table td { 
+            padding: 10px 16px; 
+            border-bottom: 1px solid #f0f0f0; 
+            font-size: 14px; 
+        }
         .preview-table tr:hover { background: #f8f9fa; }
         .number-col { font-family: 'Consolas', monospace; color: #1976d2; }
         .expense-col { font-weight: 500; color: #2e7d32; }
@@ -294,7 +404,10 @@
             border-radius: 50%; 
             animation: spin 0.8s linear infinite; 
         }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes spin { 
+            0% { transform: rotate(0deg); } 
+            100% { transform: rotate(360deg); } 
+        }
         
         .row-error { background: #fff8f8 !important; }
         .row-error td { color: #c62828; }
@@ -319,22 +432,17 @@
             padding: 2px 6px;
             border-radius: 4px;
             margin-left: 4px;
-        }
-
-        /* Секция выбора типа документа (показывается только если не передан docType) */
-        .doc-type-section {
-            margin-bottom: 24px;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 12px;
-            border: 1px solid #e0e0e0;
-        }
-        .doc-type-section-title {
-            text-align: center;
             font-weight: 600;
-            color: #333;
-            margin-bottom: 16px;
-            font-size: 15px;
+        }
+        
+        .from-excel-badge {
+            display: inline-block;
+            background: #e3f2fd;
+            color: #1565c0;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 4px;
         }
     </style>
 </head>
@@ -349,7 +457,7 @@
         <div id="statusMessage" class="status-message"></div>
         
         <div id="mainContent">
-            <!-- Выбор типа документа (показывается если не передан docType) -->
+            <!-- Выбор типа документа -->
             <div id="docTypeSection" class="doc-type-section" style="display: none;">
                 <div class="doc-type-section-title">📄 Выберите тип документов для разнесения расходов</div>
                 <div class="doc-type-selector">
@@ -361,7 +469,7 @@
                     <div class="doc-type-btn" data-type="supply">
                         <span class="icon">📥</span>
                         <span class="label">Приёмки</span>
-                        <span class="hint">Закупки от поставщиков</span>
+                        <span class="hint">Закупки у поставщиков</span>
                     </div>
                     <div class="doc-type-btn" data-type="move">
                         <span class="icon">🔄</span>
@@ -371,6 +479,7 @@
                 </div>
             </div>
 
+            <!-- Настройки -->
             <div class="settings-row">
                 <div class="settings-item">
                     <label for="yearSelect">📅 Год документов</label>
@@ -389,39 +498,46 @@
                 </div>
             </div>
             
+            <!-- Статья расходов -->
             <div class="input-section">
                 <label class="input-label">📝 Статья расходов (по умолчанию)</label>
                 <div class="category-wrapper">
                     <div class="category-select-wrapper">
                         <input type="text" id="categoryInput" class="category-input" 
-                               placeholder="Выберите или введите статью..." autocomplete="off">
+                               placeholder="Не выбрана — из Excel или 'Накладные расходы'" autocomplete="off">
+                        <button type="button" id="clearCategoryBtn" class="btn-clear-input" title="Очистить">×</button>
+                        <button type="button" id="dropdownToggleBtn" class="btn-dropdown-toggle" title="Выбрать из списка">▼</button>
                         <div id="categoryDropdown" class="category-dropdown"></div>
                     </div>
-                    <button id="addCategoryBtn" class="btn-add" title="Добавить статью">+</button>
+                    <button id="addCategoryBtn" class="btn-add" title="Добавить новую статью">+</button>
                 </div>
                 <div class="input-hint">
-                    Выберите из списка или введите новую и нажмите + 
-                    <br>Статьи из 3-го столбца Excel создаются автоматически
+                    Выберите из списка ▼ или введите новую и нажмите +<br>
+                    Если пусто — берётся статья из 3-го столбца Excel или "Накладные расходы"
                 </div>
             </div>
             
+            <!-- Вставка данных -->
             <div class="input-section">
                 <label class="input-label">📋 Вставьте данные из Excel</label>
                 <div class="format-hint">
-                    <b>Формат данных:</b><br>
-                    • 2 столбца: <code>Номер документа</code> <code>Сумма</code><br>
-                    • 3 столбца: <code>Номер документа</code> <code>Сумма</code> <code>Статья расходов</code>
+                    <b>Формат:</b> 
+                    <code>Номер</code> <code>Сумма</code> или 
+                    <code>Номер</code> <code>Сумма</code> <code>Статья</code>
                 </div>
-                <textarea id="pasteInput" class="paste-area" placeholder="Пример (2 столбца):
+                <textarea id="pasteInput" class="paste-area" placeholder="Примеры:
+
+2 столбца (статья из поля выше или 'Накладные расходы'):
 00001    1500.50
 00002    2300
 
-Пример (3 столбца - статьи создадутся автоматически):
+3 столбца (статья из Excel, создастся автоматически):
 00001    1500.50    Доставка
 00002    2300       Упаковка
-00003    890.25     Транспорт"></textarea>
+00003    890.25     Транспортные расходы"></textarea>
             </div>
             
+            <!-- Предпросмотр -->
             <div class="preview-section">
                 <div class="preview-header">
                     <span class="preview-title">Предпросмотр</span>
@@ -446,6 +562,7 @@
                 </div>
             </div>
             
+            <!-- Действия -->
             <div class="actions">
                 <div id="loader" class="loader">
                     <div class="spinner"></div>
@@ -499,6 +616,8 @@
         const telegramSaved = document.getElementById('telegramSaved');
         const categoryInput = document.getElementById('categoryInput');
         const categoryDropdown = document.getElementById('categoryDropdown');
+        const clearCategoryBtn = document.getElementById('clearCategoryBtn');
+        const dropdownToggleBtn = document.getElementById('dropdownToggleBtn');
         const addCategoryBtn = document.getElementById('addCategoryBtn');
         const pasteInput = document.getElementById('pasteInput');
         const previewBody = document.getElementById('previewBody');
@@ -532,16 +651,12 @@
             // Обработчики для кнопок выбора типа
             document.querySelectorAll('.doc-type-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    // Снимаем активность со всех
                     document.querySelectorAll('.doc-type-btn').forEach(b => {
                         b.classList.remove('active', 'demand', 'supply', 'move');
                     });
                     
-                    // Активируем выбранную
                     const type = btn.dataset.type;
                     btn.classList.add('active', type);
-                    
-                    // Обновляем выбранный тип
                     selectedDocType = type;
                     updateUIForDocType();
                 });
@@ -550,11 +665,7 @@
         
         function updateUIForDocType() {
             const config = docTypeConfig[selectedDocType] || docTypeConfig['demand'];
-            
-            // Обновляем заголовок
             pageTitle.textContent = `${config.icon} Накладные расходы (${config.name})`;
-            
-            // Обновляем кнопку
             processBtnText.textContent = config.btnText;
             processBtn.classList.remove('demand', 'supply', 'move');
             processBtn.classList.add(config.color);
@@ -613,9 +724,11 @@
                 }
                 
                 renderCategoryDropdown();
-                if (categories.length > 0) {
-                    categoryInput.value = categories[0].name;
-                }
+                
+                // По умолчанию поле пустое
+                categoryInput.value = '';
+                updateClearButton();
+                
                 mainContent.classList.remove('app-disabled');
             } catch (error) {
                 console.error('Load error:', error);
@@ -629,22 +742,51 @@
         }
         
         function setupEventListeners() {
+            // Вставка данных
             pasteInput.addEventListener('input', handleInput);
             pasteInput.addEventListener('paste', () => setTimeout(handleInput, 50));
             
-            categoryInput.addEventListener('input', () => { filterCategories(); renderPreview(); });
-            categoryInput.addEventListener('focus', () => { 
-                categoryDropdown.classList.add('show'); 
+            // Поле категории
+            categoryInput.addEventListener('input', () => { 
                 filterCategories(); 
+                updateClearButton();
+                renderPreview();
+            });
+            categoryInput.addEventListener('focus', () => { 
+                showDropdown();
             });
             
-            document.addEventListener('click', (e) => {
-                if (!e.target.closest('.category-select-wrapper')) {
-                    categoryDropdown.classList.remove('show');
+            // Кнопка очистки категории
+            clearCategoryBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                categoryInput.value = '';
+                updateClearButton();
+                hideDropdown();
+                renderPreview();
+                categoryInput.focus();
+            });
+            
+            // Кнопка выпадающего списка
+            dropdownToggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (categoryDropdown.classList.contains('show')) {
+                    hideDropdown();
+                } else {
+                    showDropdown();
                 }
             });
             
+            // Закрытие dropdown при клике вне
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.category-select-wrapper')) {
+                    hideDropdown();
+                }
+            });
+            
+            // Добавление категории
             addCategoryBtn.addEventListener('click', addNewCategory);
+            
+            // Кнопки действий
             clearBtn.addEventListener('click', clearData);
             processBtn.addEventListener('click', processExpenses);
             
@@ -667,6 +809,25 @@
                     telegramSaveTimeout = setTimeout(() => saveTelegramUsername(value), 1500);
                 }
             });
+        }
+        
+        function showDropdown() {
+            filterCategories();
+            categoryDropdown.classList.add('show');
+            dropdownToggleBtn.classList.add('open');
+        }
+        
+        function hideDropdown() {
+            categoryDropdown.classList.remove('show');
+            dropdownToggleBtn.classList.remove('open');
+        }
+        
+        function updateClearButton() {
+            if (categoryInput.value.trim()) {
+                clearCategoryBtn.classList.add('show');
+            } else {
+                clearCategoryBtn.classList.remove('show');
+            }
         }
         
         async function checkTelegramUser(username) {
@@ -707,7 +868,7 @@
             
             if (filtered.length === 0) {
                 categoryDropdown.innerHTML = `<div class="category-empty">
-                    ${filter ? 'Нажмите + чтобы добавить' : 'Справочник пуст'}
+                    ${filter ? 'Не найдено. Нажмите + чтобы добавить' : 'Справочник пуст. Добавьте статью через +'}
                 </div>`;
                 return;
             }
@@ -719,7 +880,8 @@
             categoryDropdown.querySelectorAll('.category-option').forEach(opt => {
                 opt.addEventListener('click', () => {
                     categoryInput.value = opt.dataset.name;
-                    categoryDropdown.classList.remove('show');
+                    hideDropdown();
+                    updateClearButton();
                     renderPreview();
                 });
             });
@@ -753,6 +915,7 @@
                 if (data.success) {
                     categories.push(data.category);
                     renderCategoryDropdown();
+                    updateClearButton();
                     showStatus(`✅ Статья "${name}" добавлена`, 'success');
                 } else {
                     showStatus(`❌ ${data.error}`, 'error');
@@ -787,7 +950,6 @@
                 const trimmed = line.trim();
                 if (!trimmed) continue;
                 
-                // Разделители: Tab, точка с запятой, множественные пробелы
                 let parts = trimmed.split('\t');
                 if (parts.length < 2) parts = trimmed.split(';');
                 if (parts.length < 2) parts = trimmed.split(/\s{2,}/);
@@ -810,7 +972,7 @@
         }
         
         function getDefaultCategory() { 
-            return categoryInput.value.trim() || 'Накладные расходы'; 
+            return categoryInput.value.trim(); // Может быть пустым
         }
         
         function renderPreview() {
@@ -836,13 +998,30 @@
             
             let countText = `${parsedData.length} записей (${validCount} корректных)`;
             if (newCategories.size > 0) {
-                countText += ` | ${newCategories.size} новых статей`;
+                countText += ` • ${newCategories.size} новых статей`;
             }
             previewCount.textContent = countText;
             
             previewBody.innerHTML = parsedData.map((item, i) => {
-                const displayCategory = item.category || defaultCategory;
-                const isNewCategory = item.category && !existingNames.has(item.category.toLowerCase());
+                // Логика определения статьи
+                let displayCategory;
+                let badgeHtml = '';
+                
+                if (item.category) {
+                    // Есть статья из Excel
+                    displayCategory = item.category;
+                    const isNew = !existingNames.has(item.category.toLowerCase());
+                    badgeHtml = isNew 
+                        ? '<span class="new-category-badge">НОВАЯ</span>' 
+                        : '<span class="from-excel-badge">из Excel</span>';
+                } else if (defaultCategory) {
+                    // Используем статью по умолчанию
+                    displayCategory = defaultCategory;
+                } else {
+                    // Используем "Накладные расходы"
+                    displayCategory = 'Накладные расходы';
+                    badgeHtml = '<span class="from-excel-badge">авто</span>';
+                }
                 
                 return `
                     <tr class="${item.isValid ? '' : 'row-error'}">
@@ -857,9 +1036,7 @@
                             ${item.expense.toLocaleString('ru-RU', {minimumFractionDigits: 2})} ₽
                         </td>
                         <td class="category-col">
-                            ${escapeHtml(displayCategory)}
-                            ${item.category ? ' 📎' : ''}
-                            ${isNewCategory ? '<span class="new-category-badge">НОВАЯ</span>' : ''}
+                            ${escapeHtml(displayCategory)} ${badgeHtml}
                         </td>
                     </tr>
                 `;
@@ -892,7 +1069,7 @@
             
             const year = parseInt(yearSelect.value);
             const telegramUsername = telegramInput.value.trim();
-            const defaultCategory = getDefaultCategory();
+            const defaultCategory = getDefaultCategory() || 'Накладные расходы';
             const config = docTypeConfig[selectedDocType];
             
             loader.classList.add('show');
@@ -920,11 +1097,10 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    let msg = `✅ ${config.name}: обработано ${result.processed}`;
-                    if (result.errors > 0) msg += `, ошибок: ${result.errors}`;
+                    let msg = `✅ ${config.name}: ${result.processed} обработано`;
+                    if (result.errors > 0) msg += `, ${result.errors} ошибок`;
                     if (result.newCategories && result.newCategories.length > 0) {
-                        msg += `, создано статей: ${result.newCategories.length}`;
-                        // Добавляем новые статьи в локальный список
+                        msg += `, ${result.newCategories.length} статей создано`;
                         result.newCategories.forEach(name => {
                             if (!categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
                                 categories.push({ id: 'new', name: name });
@@ -932,7 +1108,7 @@
                         });
                         renderCategoryDropdown();
                     }
-                    if (telegramUsername) msg += ' | Отчёт в Telegram';
+                    if (telegramUsername) msg += ' • Отчёт в Telegram';
                     
                     showStatus(msg, result.errors > 0 ? 'info' : 'success');
                     
