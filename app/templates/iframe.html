@@ -41,17 +41,56 @@
         .account-badge.error { background: #ffebee; color: #c62828; }
         .account-badge.loading { background: #fff3e0; color: #e65100; }
         
-        .doc-type-badge {
-            display: inline-block;
-            margin-left: 8px;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
+        /* Выбор типа документа */
+        .doc-type-selector {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
         }
-        .doc-type-badge.demand { background: #e8f5e9; color: #2e7d32; }
-        .doc-type-badge.supply { background: #e3f2fd; color: #1565c0; }
-        .doc-type-badge.move { background: #fff3e0; color: #e65100; }
+        .doc-type-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 16px 24px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            background: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 140px;
+        }
+        .doc-type-btn:hover {
+            border-color: #bdbdbd;
+            background: #fafafa;
+        }
+        .doc-type-btn.active {
+            border-color: #4caf50;
+            background: #e8f5e9;
+        }
+        .doc-type-btn.active.supply {
+            border-color: #2196f3;
+            background: #e3f2fd;
+        }
+        .doc-type-btn.active.move {
+            border-color: #ff9800;
+            background: #fff3e0;
+        }
+        .doc-type-btn .icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+        .doc-type-btn .label {
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+        .doc-type-btn .hint {
+            font-size: 11px;
+            color: #888;
+            margin-top: 4px;
+        }
         
         .input-section { margin-bottom: 24px; }
         .input-label { display: block; font-weight: 600; margin-bottom: 8px; color: #333; font-size: 15px; }
@@ -226,6 +265,10 @@
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-primary { background: #4caf50; color: white; }
         .btn-primary:hover:not(:disabled) { background: #43a047; }
+        .btn-primary.supply { background: #2196f3; }
+        .btn-primary.supply:hover:not(:disabled) { background: #1976d2; }
+        .btn-primary.move { background: #ff9800; }
+        .btn-primary.move:hover:not(:disabled) { background: #f57c00; }
         .btn-secondary { background: #f5f5f5; color: #333; border: 1px solid #ddd; }
         .btn-secondary:hover:not(:disabled) { background: #e8e8e8; }
         
@@ -277,6 +320,22 @@
             border-radius: 4px;
             margin-left: 4px;
         }
+
+        /* Секция выбора типа документа (показывается только если не передан docType) */
+        .doc-type-section {
+            margin-bottom: 24px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border: 1px solid #e0e0e0;
+        }
+        .doc-type-section-title {
+            text-align: center;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 16px;
+            font-size: 15px;
+        }
     </style>
 </head>
 <body>
@@ -284,15 +343,34 @@
         <div class="header">
             <h1 id="pageTitle">📊 Занести накладные расходы</h1>
             <p>Скопируйте данные из Excel и вставьте ниже</p>
-            <div>
-                <span id="accountBadge" class="account-badge loading">🔄 Подключение...</span>
-                <span id="docTypeBadge" class="doc-type-badge demand">Отгрузки</span>
-            </div>
+            <span id="accountBadge" class="account-badge loading">🔄 Подключение...</span>
         </div>
         
         <div id="statusMessage" class="status-message"></div>
         
         <div id="mainContent">
+            <!-- Выбор типа документа (показывается если не передан docType) -->
+            <div id="docTypeSection" class="doc-type-section" style="display: none;">
+                <div class="doc-type-section-title">📄 Выберите тип документов для разнесения расходов</div>
+                <div class="doc-type-selector">
+                    <div class="doc-type-btn active" data-type="demand">
+                        <span class="icon">📦</span>
+                        <span class="label">Отгрузки</span>
+                        <span class="hint">Продажи клиентам</span>
+                    </div>
+                    <div class="doc-type-btn" data-type="supply">
+                        <span class="icon">📥</span>
+                        <span class="label">Приёмки</span>
+                        <span class="hint">Закупки от поставщиков</span>
+                    </div>
+                    <div class="doc-type-btn" data-type="move">
+                        <span class="icon">🔄</span>
+                        <span class="label">Перемещения</span>
+                        <span class="hint">Между складами</span>
+                    </div>
+                </div>
+            </div>
+
             <div class="settings-row">
                 <div class="settings-item">
                     <label for="yearSelect">📅 Год документов</label>
@@ -305,7 +383,7 @@
                         <span id="telegramSaved" class="telegram-saved" style="display: none;">💾</span>
                     </div>
                     <div id="telegramStatus" class="telegram-status"></div>
-                    <a href="https://t.me/KULPS_bot" target="_blank" class="bot-link">
+                    <a href="https://t.me/package_expenses_bot" target="_blank" class="bot-link">
                         Написать боту /start для регистрации →
                     </a>
                 </div>
@@ -374,7 +452,9 @@
                     <span id="loaderText">Обработка...</span>
                 </div>
                 <button id="clearBtn" class="btn btn-secondary">Очистить</button>
-                <button id="processBtn" class="btn btn-primary" disabled>✓ Разнести расходы</button>
+                <button id="processBtn" class="btn btn-primary" disabled>
+                    <span id="processBtnText">✓ Разнести расходы</span>
+                </button>
             </div>
         </div>
     </div>
@@ -394,13 +474,16 @@
         const contextKey = urlParams.get('contextKey') || '';
         const appId = urlParams.get('appId') || '';
         const appUid = urlParams.get('appUid') || '';
-        const docType = urlParams.get('docType') || 'demand';
+        const docTypeFromUrl = urlParams.get('docType') || '';
         
-        // Названия типов документов
+        // Текущий выбранный тип документа
+        let selectedDocType = docTypeFromUrl || 'demand';
+        
+        // Конфигурация типов документов
         const docTypeConfig = {
-            'demand': { name: 'Отгрузки', icon: '📦', color: 'demand' },
-            'supply': { name: 'Приёмки', icon: '📥', color: 'supply' },
-            'move': { name: 'Перемещения', icon: '🔄', color: 'move' }
+            'demand': { name: 'Отгрузки', icon: '📦', color: 'demand', btnText: '✓ Разнести в отгрузки' },
+            'supply': { name: 'Приёмки', icon: '📥', color: 'supply', btnText: '✓ Разнести в приёмки' },
+            'move': { name: 'Перемещения', icon: '🔄', color: 'move', btnText: '✓ Разнести в перемещения' }
         };
         
         const API_BASE = '/expensesms/api';
@@ -408,7 +491,7 @@
         // ============== DOM элементы ==============
         const pageTitle = document.getElementById('pageTitle');
         const accountBadge = document.getElementById('accountBadge');
-        const docTypeBadge = document.getElementById('docTypeBadge');
+        const docTypeSection = document.getElementById('docTypeSection');
         const mainContent = document.getElementById('mainContent');
         const yearSelect = document.getElementById('yearSelect');
         const telegramInput = document.getElementById('telegramInput');
@@ -423,6 +506,7 @@
         const previewEmpty = document.getElementById('previewEmpty');
         const previewTableWrapper = document.getElementById('previewTableWrapper');
         const processBtn = document.getElementById('processBtn');
+        const processBtnText = document.getElementById('processBtnText');
         const clearBtn = document.getElementById('clearBtn');
         const loader = document.getElementById('loader');
         const loaderText = document.getElementById('loaderText');
@@ -432,17 +516,48 @@
         init();
         
         async function init() {
-            setupDocType();
+            setupDocTypeSelector();
             setupYearSelect();
             setupEventListeners();
+            updateUIForDocType();
             await loadCategories();
         }
         
-        function setupDocType() {
-            const config = docTypeConfig[docType] || docTypeConfig['demand'];
+        function setupDocTypeSelector() {
+            // Показываем выбор типа только если не передан docType через URL
+            if (!docTypeFromUrl) {
+                docTypeSection.style.display = 'block';
+            }
+            
+            // Обработчики для кнопок выбора типа
+            document.querySelectorAll('.doc-type-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    // Снимаем активность со всех
+                    document.querySelectorAll('.doc-type-btn').forEach(b => {
+                        b.classList.remove('active', 'demand', 'supply', 'move');
+                    });
+                    
+                    // Активируем выбранную
+                    const type = btn.dataset.type;
+                    btn.classList.add('active', type);
+                    
+                    // Обновляем выбранный тип
+                    selectedDocType = type;
+                    updateUIForDocType();
+                });
+            });
+        }
+        
+        function updateUIForDocType() {
+            const config = docTypeConfig[selectedDocType] || docTypeConfig['demand'];
+            
+            // Обновляем заголовок
             pageTitle.textContent = `${config.icon} Накладные расходы (${config.name})`;
-            docTypeBadge.textContent = config.name;
-            docTypeBadge.className = `doc-type-badge ${config.color}`;
+            
+            // Обновляем кнопку
+            processBtnText.textContent = config.btnText;
+            processBtn.classList.remove('demand', 'supply', 'move');
+            processBtn.classList.add(config.color);
         }
         
         function setupYearSelect() {
@@ -778,9 +893,10 @@
             const year = parseInt(yearSelect.value);
             const telegramUsername = telegramInput.value.trim();
             const defaultCategory = getDefaultCategory();
+            const config = docTypeConfig[selectedDocType];
             
             loader.classList.add('show');
-            loaderText.textContent = 'Обработка...';
+            loaderText.textContent = `Разнесение в ${config.name.toLowerCase()}...`;
             processBtn.disabled = true;
             clearBtn.disabled = true;
             
@@ -797,14 +913,14 @@
                         category: defaultCategory,
                         year: year,
                         telegramUsername: telegramUsername,
-                        docType: docType
+                        docType: selectedDocType
                     })
                 });
                 
                 const result = await response.json();
                 
                 if (result.success) {
-                    let msg = `✅ Обработано: ${result.processed}`;
+                    let msg = `✅ ${config.name}: обработано ${result.processed}`;
                     if (result.errors > 0) msg += `, ошибок: ${result.errors}`;
                     if (result.newCategories && result.newCategories.length > 0) {
                         msg += `, создано статей: ${result.newCategories.length}`;
