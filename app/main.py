@@ -1,7 +1,8 @@
-# main.py - ВЕРСИЯ v7.1
+# main.py - ВЕРСИЯ v7.2 (с админ-уведомлениями)
 # Поддержка: Отгрузки, Приёмки, Перемещения
 # Автосоздание статей из Excel, Telegram уведомления, точный поиск
 # Выбор валюты для комментариев
+# Админ-уведомления о активациях/деактивациях
 
 import os
 import json
@@ -25,6 +26,9 @@ ROOT_PATH = os.getenv("ROOT_PATH", "/expensesms")
 APP_ID = os.getenv("APP_ID", "")
 APP_SECRET = os.getenv("APP_SECRET", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+
+# Ник администратора для служебных уведомлений (например, "@kulps_dev")
+ADMIN_TELEGRAM_USERNAME = os.getenv("ADMIN_TELEGRAM_USERNAME", "@kulps_dev")
 
 app = FastAPI(title="Накладные расходы - МойСклад", root_path=ROOT_PATH)
 templates = Jinja2Templates(directory="templates")
@@ -440,6 +444,21 @@ async def send_log_file_to_user(username: str, log_content: str, filename: str):
     return await send_telegram_document(chat_id, log_content, filename, "📄 Полный лог обработки")
 
 
+# ============== Системные Telegram-уведомления ==============
+
+async def notify_admin(text: str):
+    """
+    Отправить служебное уведомление админу.
+    Username берётся из ADMIN_TELEGRAM_USERNAME (переменная окружения), например "@kulps_dev".
+    Другим пользователям это не приходит.
+    """
+    username = (ADMIN_TELEGRAM_USERNAME or "").lstrip()
+    if not username:
+        logger.warning("⚠️ ADMIN_TELEGRAM_USERNAME не задан")
+        return False
+    return await notify_user_by_username(username, text)
+
+
 # ============== Context Mapping ==============
 
 def save_context_mapping(context_key: str, account_id: str):
@@ -750,6 +769,24 @@ async def activate_app(app_id: str, account_id: str, request: Request):
     if token:
         dict_id = await ensure_dictionary(token, account_id)
         logger.info(f"📚 Справочник: {dict_id}")
+
+    # Админ-уведомление о новой активации
+    try:
+        from asyncio import create_task
+        active_accounts = get_all_active_accounts()
+        msg_lines = [
+            "🟢 <b>Новая активация приложения</b>",
+            "",
+            f"📦 Аккаунт: {account_name or '—'}",
+            f"🆔 ID: <code>{account_id}</code>",
+            f"🧩 App ID: <code>{app_id}</code>",
+            "",
+            f"📊 Сейчас активных аккаунтов: <b>{len(active_accounts)}</b>",
+            f"⏰ {now_msk().strftime('%d.%m.%Y %H:%M:%S')}",
+        ]
+        create_task(notify_admin("\n".join(msg_lines)))
+    except Exception as e:
+        logger.error(f"Не удалось отправить уведомление админу об активации: {e}")
     
     return JSONResponse({"status": "Activated"})
 
@@ -771,6 +808,30 @@ async def deactivate_app(app_id: str, account_id: str, request: Request):
     for k in keys_to_remove:
         del context_map["map"][k]
     save_context_map(context_map)
+
+    # Админ-уведомление о деактивации
+    try:
+        from asyncio import create_task
+        account_name = body.get("accountName", "") or (acc.get("account_name") if acc else "")
+        reason = body.get("reason") or body.get("cause") or ""
+        reason_text = f"\n📝 Причина: {reason}" if reason else ""
+        active_accounts = get_all_active_accounts()
+        msg_lines = [
+            "🔴 <b>Деактивация приложения</b>",
+            "",
+            f"📦 Аккаунт: {account_name or '—'}",
+            f"🆔 ID: <code>{account_id}</code>",
+            f"🧩 App ID: <code>{app_id}</code>",
+            reason_text,
+            "",
+            f"📊 После деактивации активных аккаунтов: <b>{len(active_accounts)}</b>",
+            f"⏰ {now_msk().strftime('%d.%m.%Y %H:%M:%S')}",
+        ]
+        # Уберём пустые строки от reason_text
+        msg = "\n".join([line for line in msg_lines if line != ""])
+        create_task(notify_admin(msg))
+    except Exception as e:
+        logger.error(f"Не удалось отправить уведомление админу о деактивации: {e}")
     
     return JSONResponse(status_code=200, content={})
 
@@ -1087,6 +1148,35 @@ async def get_currencies():
     return JSONResponse({"currencies": currencies})
 
 
+# ============== Админ-эндпоинт: уведомить о всех активных аккаунтах ==============
+
+@app.post("/api/admin/notify-active-accounts")
+async def admin_notify_active_accounts(request: Request):
+    """
+    Ручная отправка отчёта обо всех активных аккаунтах админу в Telegram.
+    Можно защитить простым секретом через переменную окружения ADMIN_SECRET.
+    Вызов: POST /expensesms/api/admin/notify-active-accounts?secret=XXX
+    """
+    secret = request.query_params.get("secret", "")
+    expected = os.getenv("ADMIN_SECRET", "")
+    if expected and secret != expected:
+        return JSONResponse({"success": False, "error": "Forbidden"}, status_code=403)
+
+    active_accounts = get_all_active_accounts()
+    lines = [
+        "📊 <b>Статус приложения</b>",
+        f"Активных аккаунтов: <b>{len(active_accounts)}</b>",
+        ""
+    ]
+    for acc in active_accounts[:30]:
+        lines.append(f"• {acc.get('account_name', '—')} (<code>{acc.get('account_id')}</code>)")
+    if len(active_accounts) > 30:
+        lines.append(f"... и ещё {len(active_accounts) - 30}")
+
+    await notify_admin("\n".join(lines))
+    return JSONResponse({"success": True, "total": len(active_accounts)})
+
+
 # ============== Страницы ==============
 
 @app.get("/iframe", response_class=HTMLResponse)
@@ -1114,13 +1204,13 @@ async def root():
     all_accounts = get_all_active_accounts()
     return {
         "app": "Накладные расходы",
-        "version": "7.1",
+        "version": "7.2",
         "active_accounts": len(all_accounts),
         "features": [
             "demand", "supply", "move", 
             "telegram", "auto_categories", 
             "exact_match", "year_filter",
-            "multi_currency"
+            "multi_currency", "admin_notify"
         ],
         "supported_currencies": list(CURRENCY_SYMBOLS.keys())
     }
