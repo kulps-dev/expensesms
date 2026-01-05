@@ -5,174 +5,369 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Накладные расходы</title>
     <style>
+        :root {
+            --primary: #1976d2;
+            --primary-hover: #1565c0;
+            --primary-light: #e3f2fd;
+            --primary-50: #bbdefb;
+            
+            --success: #43a047;
+            --success-hover: #388e3c;
+            --success-light: #e8f5e9;
+            
+            --warning: #fb8c00;
+            --warning-hover: #f57c00;
+            --warning-light: #fff3e0;
+            
+            --danger: #e53935;
+            --danger-light: #ffebee;
+            
+            --white: #ffffff;
+            --gray-50: #fafafa;
+            --gray-100: #f5f5f5;
+            --gray-200: #eeeeee;
+            --gray-300: #e0e0e0;
+            --gray-400: #bdbdbd;
+            --gray-500: #9e9e9e;
+            --gray-600: #757575;
+            --gray-700: #616161;
+            --gray-800: #424242;
+            --gray-900: #212121;
+            
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+            --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+            --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.05);
+            --shadow-lg: 0 10px 15px rgba(0,0,0,0.08), 0 4px 6px rgba(0,0,0,0.04);
+            
+            --radius-sm: 6px;
+            --radius: 8px;
+            --radius-lg: 12px;
+            
+            --transition: all 0.15s ease;
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { height: 100%; overflow-y: auto; }
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f5f5;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--gray-800);
+            background: var(--gray-100);
+            -webkit-font-smoothing: antialiased;
             min-height: 100vh;
             padding: 24px;
         }
+
         .container {
             max-width: 900px;
             margin: 0 auto;
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow);
             padding: 32px;
         }
+
         .header {
             text-align: center;
             margin-bottom: 32px;
             padding-bottom: 24px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--gray-200);
         }
-        .header h1 { font-size: 26px; color: #333; margin-bottom: 8px; }
-        .header p { color: #666; font-size: 15px; }
+
+        .header-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 16px;
+            background: var(--primary-light);
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .header-icon svg {
+            width: 24px;
+            height: 24px;
+            stroke: var(--primary);
+            stroke-width: 2;
+            fill: none;
+        }
+
+        .header h1 {
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--gray-900);
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: var(--gray-600);
+            font-size: 14px;
+        }
+
         .account-badge {
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
             margin-top: 12px;
-            padding: 6px 16px;
-            background: #e8f5e9;
+            padding: 6px 14px;
+            background: var(--success-light);
             color: #2e7d32;
             border-radius: 20px;
             font-size: 13px;
+            font-weight: 500;
+            border: 1px solid #a5d6a7;
         }
-        .account-badge.error { background: #ffebee; color: #c62828; }
-        .account-badge.loading { background: #fff3e0; color: #e65100; }
-        
-        /* Выбор типа документа */
-        .doc-type-section {
-            margin-bottom: 24px;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 12px;
-            border: 1px solid #e0e0e0;
+
+        .account-badge.error {
+            background: var(--danger-light);
+            color: #c62828;
+            border-color: #ef9a9a;
         }
-        .doc-type-section-title {
-            text-align: center;
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 16px;
+
+        .account-badge.loading {
+            background: var(--warning-light);
+            color: #e65100;
+            border-color: #ffcc80;
+        }
+
+        .account-badge svg {
+            width: 14px;
+            height: 14px;
+            stroke: currentColor;
+            stroke-width: 2;
+            fill: none;
+        }
+
+        /* Card styles */
+        .card {
+            background: var(--white);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            margin-bottom: 20px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .card-title {
             font-size: 15px;
+            font-weight: 600;
+            color: var(--gray-900);
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
+
+        .card-title svg {
+            width: 18px;
+            height: 18px;
+            stroke: var(--gray-500);
+            stroke-width: 2;
+            fill: none;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        /* Doc type selector */
         .doc-type-selector {
             display: flex;
             gap: 12px;
             justify-content: center;
             flex-wrap: wrap;
         }
+
         .doc-type-btn {
             display: flex;
             flex-direction: column;
             align-items: center;
             padding: 16px 24px;
-            border: 2px solid #e0e0e0;
-            border-radius: 12px;
-            background: #fff;
+            border: 2px solid var(--gray-200);
+            border-radius: var(--radius-lg);
+            background: var(--white);
             cursor: pointer;
-            transition: all 0.2s;
+            transition: var(--transition);
             min-width: 140px;
         }
+
         .doc-type-btn:hover {
-            border-color: #bdbdbd;
-            background: #fafafa;
+            border-color: var(--gray-300);
+            background: var(--gray-50);
         }
+
         .doc-type-btn.active {
-            border-color: #4caf50;
-            background: #e8f5e9;
+            border-color: var(--success);
+            background: var(--success-light);
         }
+
         .doc-type-btn.active.supply {
-            border-color: #2196f3;
-            background: #e3f2fd;
+            border-color: var(--primary);
+            background: var(--primary-light);
         }
+
         .doc-type-btn.active.move {
-            border-color: #ff9800;
-            background: #fff3e0;
+            border-color: var(--warning);
+            background: var(--warning-light);
         }
-        .doc-type-btn .icon { font-size: 32px; margin-bottom: 8px; }
-        .doc-type-btn .label { font-weight: 600; color: #333; font-size: 14px; }
-        .doc-type-btn .hint { font-size: 11px; color: #888; margin-top: 4px; }
-        
-        .input-section { margin-bottom: 24px; }
-        .input-label { display: block; font-weight: 600; margin-bottom: 8px; color: #333; font-size: 15px; }
-        .input-hint { font-size: 13px; color: #888; margin-bottom: 12px; line-height: 1.5; }
-        
-        .settings-row {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 24px;
-            flex-wrap: wrap;
-        }
-        .settings-item {
-            flex: 1;
-            min-width: 160px;
-        }
-        .settings-item label {
-            display: block;
-            font-weight: 600;
+
+        .doc-type-btn .icon {
+            width: 40px;
+            height: 40px;
             margin-bottom: 8px;
-            color: #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--gray-100);
+            border-radius: var(--radius);
+            transition: var(--transition);
+        }
+
+        .doc-type-btn.active .icon {
+            background: var(--white);
+        }
+
+        .doc-type-btn .icon svg {
+            width: 20px;
+            height: 20px;
+            stroke: var(--gray-600);
+            stroke-width: 2;
+            fill: none;
+        }
+
+        .doc-type-btn.active .icon svg {
+            stroke: var(--success);
+        }
+
+        .doc-type-btn.active.supply .icon svg {
+            stroke: var(--primary);
+        }
+
+        .doc-type-btn.active.move .icon svg {
+            stroke: var(--warning);
+        }
+
+        .doc-type-btn .label {
+            font-weight: 600;
+            color: var(--gray-800);
             font-size: 14px;
         }
-        .year-select, .telegram-input {
-            width: 100%;
-            padding: 10px 14px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 15px;
-        }
-        .year-select:focus, .telegram-input:focus {
-            outline: none;
-            border-color: #1976d2;
-        }
-        .telegram-wrapper { position: relative; }
-        .telegram-status {
-            font-size: 12px;
+
+        .doc-type-btn .hint {
+            font-size: 11px;
+            color: var(--gray-500);
             margin-top: 4px;
-            height: 16px;
         }
-        .telegram-status.success { color: #2e7d32; }
-        .telegram-status.error { color: #c62828; }
-        .telegram-status.checking { color: #e65100; }
-        .telegram-saved {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
+
+        /* Form elements */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--gray-700);
+            margin-bottom: 6px;
+        }
+
+        .form-hint {
             font-size: 12px;
-            color: #4caf50;
+            color: var(--gray-500);
+            margin-top: 4px;
+            line-height: 1.5;
         }
-        
-        /* Категория с кнопками */
-        .category-wrapper { 
-            display: flex; 
-            gap: 8px; 
-            align-items: center; 
-            margin-bottom: 8px; 
+
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            padding: 10px 12px;
+            font-size: 14px;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius);
+            background: var(--white);
+            color: var(--gray-800);
+            transition: var(--transition);
+            outline: none;
         }
+
+        .form-input:hover, .form-select:hover, .form-textarea:hover {
+            border-color: var(--gray-400);
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-light);
+        }
+
+        .form-textarea {
+            min-height: 150px;
+            resize: vertical;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .form-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23757575' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            padding-right: 36px;
+            cursor: pointer;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Category input wrapper */
+        .category-wrapper {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
         .category-select-wrapper {
             position: relative;
             flex: 1;
             max-width: 400px;
         }
+
         .category-input {
             width: 100%;
-            padding: 12px 70px 12px 16px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 15px;
+            padding: 10px 70px 10px 12px;
+            font-size: 14px;
+            border: 1px solid var(--gray-300);
+            border-radius: var(--radius);
+            background: var(--white);
+            color: var(--gray-800);
+            transition: var(--transition);
+            outline: none;
         }
-        .category-input:focus { 
-            outline: none; 
-            border-color: #1976d2; 
+
+        .category-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-light);
         }
-        .category-input::placeholder {
-            color: #999;
-            font-size: 12px;
-        }
-        
-        /* Кнопка очистки (крестик) */
+
         .btn-clear-input {
             position: absolute;
             right: 38px;
@@ -181,27 +376,27 @@
             width: 22px;
             height: 22px;
             border: none;
-            background: #e0e0e0;
-            color: #666;
+            background: var(--gray-200);
+            color: var(--gray-600);
             border-radius: 50%;
-            font-size: 16px;
-            font-weight: 400;
+            font-size: 14px;
             cursor: pointer;
             display: none;
             align-items: center;
             justify-content: center;
             padding: 0;
-            line-height: 1;
+            transition: var(--transition);
         }
+
         .btn-clear-input:hover {
-            background: #f44336;
-            color: white;
+            background: var(--danger);
+            color: var(--white);
         }
+
         .btn-clear-input.show {
             display: flex;
         }
-        
-        /* Кнопка выпадающего списка */
+
         .btn-dropdown-toggle {
             position: absolute;
             right: 10px;
@@ -210,8 +405,8 @@
             width: 24px;
             height: 24px;
             border: none;
-            background: #f0f0f0;
-            color: #666;
+            background: var(--gray-100);
+            color: var(--gray-600);
             font-size: 10px;
             cursor: pointer;
             display: flex;
@@ -219,340 +414,620 @@
             justify-content: center;
             padding: 0;
             border-radius: 4px;
-            transition: all 0.2s;
+            transition: var(--transition);
         }
-        .btn-dropdown-toggle:hover {
-            background: #1976d2;
-            color: white;
-        }
+
+        .btn-dropdown-toggle:hover,
         .btn-dropdown-toggle.open {
-            background: #1976d2;
-            color: white;
+            background: var(--primary);
+            color: var(--white);
         }
-        
+
         .category-dropdown {
             position: absolute;
             top: calc(100% + 4px);
             left: 0;
             right: 0;
-            background: #fff;
-            border: 2px solid #1976d2;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            background: var(--white);
+            border: 1px solid var(--primary);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
             max-height: 200px;
             overflow-y: auto;
             z-index: 100;
             display: none;
         }
-        .category-dropdown.show { display: block; }
-        .category-option { 
-            padding: 10px 16px; 
-            cursor: pointer; 
-            border-bottom: 1px solid #f0f0f0;
+
+        .category-dropdown.show {
+            display: block;
         }
-        .category-option:last-child { border-bottom: none; }
-        .category-option:hover { background: #e3f2fd; }
-        .category-empty { padding: 16px; text-align: center; color: #999; font-size: 13px; }
-        
+
+        .category-option {
+            padding: 10px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--gray-100);
+            font-size: 14px;
+            transition: var(--transition);
+        }
+
+        .category-option:last-child {
+            border-bottom: none;
+        }
+
+        .category-option:hover {
+            background: var(--primary-light);
+        }
+
+        .category-empty {
+            padding: 16px;
+            text-align: center;
+            color: var(--gray-500);
+            font-size: 13px;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: var(--radius);
+            border: none;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        .btn svg {
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+            stroke-width: 2;
+            fill: none;
+        }
+
+        .btn-primary {
+            background: var(--success);
+            color: var(--white);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: var(--success-hover);
+        }
+
+        .btn-primary.supply {
+            background: var(--primary);
+        }
+
+        .btn-primary.supply:hover:not(:disabled) {
+            background: var(--primary-hover);
+        }
+
+        .btn-primary.move {
+            background: var(--warning);
+        }
+
+        .btn-primary.move:hover:not(:disabled) {
+            background: var(--warning-hover);
+        }
+
+        .btn-secondary {
+            background: var(--white);
+            color: var(--gray-700);
+            border: 1px solid var(--gray-300);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: var(--gray-50);
+            border-color: var(--gray-400);
+        }
+
         .btn-add {
-            width: 44px;
-            height: 44px;
-            border: 2px solid #4caf50;
-            background: #fff;
-            color: #4caf50;
-            border-radius: 8px;
-            font-size: 24px;
+            width: 42px;
+            height: 42px;
+            padding: 0;
+            border: 2px solid var(--success);
+            background: var(--white);
+            color: var(--success);
+            border-radius: var(--radius);
+            font-size: 20px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
-            transition: all 0.2s;
+            transition: var(--transition);
         }
-        .btn-add:hover { background: #4caf50; color: #fff; }
-        .btn-add:disabled { opacity: 0.5; cursor: not-allowed; }
-        
-        .paste-area {
-            width: 100%;
-            min-height: 150px;
-            padding: 16px;
-            border: 2px dashed #ddd;
-            border-radius: 8px;
-            font-family: 'Consolas', 'Monaco', monospace;
-            font-size: 14px;
-            resize: vertical;
+
+        .btn-add:hover {
+            background: var(--success);
+            color: var(--white);
         }
-        .paste-area:focus { 
-            outline: none; 
-            border-color: #1976d2; 
-            border-style: solid;
-            background: #f8fbff; 
+
+        .btn-add:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
-        
+
+        /* Format hint */
         .format-hint {
-            background: #f8f9fa;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
+            background: var(--gray-50);
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius);
             padding: 12px 16px;
             margin-bottom: 12px;
             font-size: 13px;
+            color: var(--gray-700);
         }
+
         .format-hint code {
-            background: #e8e8e8;
+            background: var(--gray-200);
             padding: 2px 6px;
             border-radius: 4px;
             font-family: 'Consolas', monospace;
+            font-size: 12px;
         }
-        
-        .preview-section { margin-bottom: 24px; }
-        .preview-header { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            margin-bottom: 12px; 
+
+        /* Preview table */
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
         }
-        .preview-title { font-weight: 600; color: #333; }
-        .preview-count { 
-            font-size: 13px; 
-            color: #666; 
-            background: #f0f0f0; 
-            padding: 4px 12px; 
-            border-radius: 12px; 
+
+        .preview-title {
+            font-weight: 600;
+            color: var(--gray-800);
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        .preview-table-wrapper { 
-            max-height: 400px; 
-            overflow-y: auto; 
-            border: 1px solid #e0e0e0; 
-            border-radius: 8px; 
+
+        .preview-count {
+            font-size: 13px;
+            color: var(--gray-600);
+            background: var(--gray-100);
+            padding: 4px 12px;
+            border-radius: 12px;
         }
-        .preview-table { width: 100%; border-collapse: collapse; }
-        .preview-table th { 
-            background: #f5f5f5; 
-            padding: 12px 16px; 
-            text-align: left; 
-            font-weight: 600; 
-            color: #555; 
-            border-bottom: 1px solid #e0e0e0; 
-            position: sticky; 
+
+        .table-wrap {
+            border: 1px solid var(--gray-200);
+            border-radius: var(--radius);
+            overflow: hidden;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th {
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-600);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+            position: sticky;
             top: 0;
+        }
+
+        .table td {
+            padding: 10px 16px;
+            font-size: 14px;
+            color: var(--gray-700);
+            border-bottom: 1px solid var(--gray-100);
+        }
+
+        .table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .table tbody tr:hover td {
+            background: var(--gray-50);
+        }
+
+        .number-col {
+            font-family: 'Consolas', monospace;
+            color: var(--primary);
+        }
+
+        .expense-col {
+            font-weight: 500;
+            color: #2e7d32;
+        }
+
+        .category-col {
+            color: var(--gray-600);
             font-size: 13px;
         }
-        .preview-table td { 
-            padding: 10px 16px; 
-            border-bottom: 1px solid #f0f0f0; 
-            font-size: 14px; 
+
+        .row-error {
+            background: var(--danger-light) !important;
         }
-        .preview-table tr:hover { background: #f8f9fa; }
-        .number-col { font-family: 'Consolas', monospace; color: #1976d2; }
-        .expense-col { font-weight: 500; color: #2e7d32; }
-        .category-col { color: #666; font-size: 13px; }
-        .preview-empty { 
-            text-align: center; 
-            padding: 48px; 
-            color: #999; 
-            background: #fafafa; 
-            border-radius: 8px; 
-            border: 1px dashed #ddd; 
+
+        .row-error td {
+            color: #c62828;
         }
-        .preview-empty-icon { font-size: 48px; margin-bottom: 16px; }
-        
-        .actions { 
-            display: flex; 
-            gap: 12px; 
-            justify-content: flex-end; 
-            padding-top: 20px; 
-            border-top: 1px solid #eee;
+
+        .icon-valid {
+            color: var(--success);
+        }
+
+        .icon-invalid {
+            color: var(--danger);
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 48px 20px;
+            color: var(--gray-500);
+            background: var(--gray-50);
+            border-radius: var(--radius);
+            border: 1px dashed var(--gray-300);
+        }
+
+        .empty-state-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 16px;
+            background: var(--gray-200);
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .empty-state-icon svg {
+            width: 24px;
+            height: 24px;
+            stroke: var(--gray-400);
+            stroke-width: 2;
+            fill: none;
+        }
+
+        /* Actions */
+        .actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            padding-top: 20px;
+            border-top: 1px solid var(--gray-200);
             align-items: center;
         }
-        .btn { 
-            padding: 12px 28px; 
-            border-radius: 8px; 
-            font-size: 15px; 
-            font-weight: 500; 
-            cursor: pointer; 
-            border: none; 
+
+        /* Status message */
+        .alert {
+            padding: 12px 16px;
+            border-radius: var(--radius);
+            font-size: 14px;
+            margin-bottom: 20px;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            animation: slideDown 0.2s ease;
         }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-primary { background: #4caf50; color: white; }
-        .btn-primary:hover:not(:disabled) { background: #43a047; }
-        .btn-primary.supply { background: #2196f3; }
-        .btn-primary.supply:hover:not(:disabled) { background: #1976d2; }
-        .btn-primary.move { background: #ff9800; }
-        .btn-primary.move:hover:not(:disabled) { background: #f57c00; }
-        .btn-secondary { background: #f5f5f5; color: #333; border: 1px solid #ddd; }
-        .btn-secondary:hover:not(:disabled) { background: #e8e8e8; }
-        
-        .status-message { 
-            padding: 14px 18px; 
-            border-radius: 8px; 
-            margin-bottom: 20px; 
-            display: none; 
-            font-size: 14px; 
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-        .status-message.show { display: block; }
-        .status-success { background: #e8f5e9; color: #2e7d32; border-left: 4px solid #4caf50; }
-        .status-error { background: #ffebee; color: #c62828; border-left: 4px solid #f44336; }
-        .status-info { background: #e3f2fd; color: #1565c0; border-left: 4px solid #2196f3; }
-        
-        .loader { display: none; align-items: center; gap: 10px; color: #666; }
-        .loader.show { display: flex; }
-        .spinner { 
-            width: 20px; 
-            height: 20px; 
-            border: 2px solid #e0e0e0; 
-            border-top: 2px solid #1976d2; 
-            border-radius: 50%; 
-            animation: spin 0.8s linear infinite; 
+
+        .alert.show {
+            display: flex;
         }
-        @keyframes spin { 
-            0% { transform: rotate(0deg); } 
-            100% { transform: rotate(360deg); } 
+
+        .alert-success {
+            background: var(--success-light);
+            color: #2e7d32;
+            border: 1px solid #a5d6a7;
         }
-        
-        .row-error { background: #fff8f8 !important; }
-        .row-error td { color: #c62828; }
-        .icon-valid { color: #4caf50; }
-        .icon-invalid { color: #f44336; }
-        .app-disabled { opacity: 0.5; pointer-events: none; }
-        
-        .bot-link {
-            display: inline-block;
-            margin-top: 4px;
-            font-size: 12px;
-            color: #1976d2;
-            text-decoration: none;
+
+        .alert-danger {
+            background: var(--danger-light);
+            color: #c62828;
+            border: 1px solid #ef9a9a;
         }
-        .bot-link:hover { text-decoration: underline; }
-        
-        .new-category-badge {
-            display: inline-block;
-            background: #fff3e0;
+
+        .alert-warning {
+            background: var(--warning-light);
             color: #e65100;
-            font-size: 10px;
-            padding: 2px 6px;
-            border-radius: 4px;
-            margin-left: 4px;
-            font-weight: 600;
+            border: 1px solid #ffcc80;
         }
-        
-        .from-excel-badge {
-            display: inline-block;
-            background: #e3f2fd;
+
+        .alert-info {
+            background: var(--primary-light);
             color: #1565c0;
-            font-size: 10px;
-            padding: 2px 6px;
-            border-radius: 4px;
-            margin-left: 4px;
+            border: 1px solid #90caf9;
         }
-        
+
+        /* Loader */
+        .loader {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--gray-500);
+        }
+
+        .loader.show {
+            display: flex;
+        }
+
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--gray-200);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            font-size: 10px;
+            font-weight: 600;
+            border-radius: 4px;
+            margin-left: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .badge-new {
+            background: var(--warning-light);
+            color: #e65100;
+        }
+
+        .badge-excel {
+            background: var(--primary-light);
+            color: #1565c0;
+        }
+
+        .badge-auto {
+            background: var(--gray-200);
+            color: var(--gray-600);
+        }
+
         .currency-badge {
-            display: inline-block;
             background: #f3e5f5;
             color: #7b1fa2;
-            font-size: 10px;
-            padding: 2px 6px;
+            padding: 4px 10px;
             border-radius: 4px;
-            margin-left: 8px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        /* Telegram */
+        .telegram-wrapper {
+            position: relative;
+        }
+
+        .telegram-status {
+            font-size: 12px;
+            margin-top: 4px;
+            height: 16px;
+        }
+
+        .telegram-status.success {
+            color: #2e7d32;
+        }
+
+        .telegram-status.error {
+            color: #c62828;
+        }
+
+        .telegram-status.checking {
+            color: #e65100;
+        }
+
+        .telegram-saved {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 12px;
+            color: var(--success);
+        }
+
+        .bot-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-top: 4px;
+            font-size: 12px;
+            color: var(--primary);
+            text-decoration: none;
+            transition: var(--transition);
+        }
+
+        .bot-link:hover {
+            text-decoration: underline;
+        }
+
+        .bot-link svg {
+            width: 12px;
+            height: 12px;
+            stroke: currentColor;
+            stroke-width: 2;
+            fill: none;
+        }
+
+        .app-disabled {
+            opacity: 0.5;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1 id="pageTitle">📊 Занести накладные расходы</h1>
+            <div class="header-icon">
+                <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+            </div>
+            <h1 id="pageTitle">Накладные расходы</h1>
             <p>Скопируйте данные из Excel и вставьте ниже</p>
-            <span id="accountBadge" class="account-badge loading">🔄 Подключение...</span>
+            <span id="accountBadge" class="account-badge loading">
+                <svg viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Подключение...
+            </span>
         </div>
-        
-        <div id="statusMessage" class="status-message"></div>
-        
+
+        <div id="statusMessage" class="alert"></div>
+
         <div id="mainContent">
             <!-- Выбор типа документа -->
-            <div id="docTypeSection" class="doc-type-section" style="display: none;">
-                <div class="doc-type-section-title">📄 Выберите тип документов для разнесения расходов</div>
-                <div class="doc-type-selector">
-                    <div class="doc-type-btn active" data-type="demand">
-                        <span class="icon">📦</span>
-                        <span class="label">Отгрузки</span>
-                        <span class="hint">Продажи клиентам</span>
+            <div id="docTypeSection" class="card" style="display: none;">
+                <div class="card-header">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        Тип документов
                     </div>
-                    <div class="doc-type-btn" data-type="supply">
-                        <span class="icon">📥</span>
-                        <span class="label">Приёмки</span>
-                        <span class="hint">Закупки у поставщиков</span>
-                    </div>
-                    <div class="doc-type-btn" data-type="move">
-                        <span class="icon">🔄</span>
-                        <span class="label">Перемещения</span>
-                        <span class="hint">Между складами</span>
+                </div>
+                <div class="card-body">
+                    <div class="doc-type-selector">
+                        <div class="doc-type-btn active" data-type="demand">
+                            <span class="icon">
+                                <svg viewBox="0 0 24 24"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                            </span>
+                            <span class="label">Отгрузки</span>
+                            <span class="hint">Продажи клиентам</span>
+                        </div>
+                        <div class="doc-type-btn" data-type="supply">
+                            <span class="icon">
+                                <svg viewBox="0 0 24 24"><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v12m0 0l-4-4m4 4l4-4"/></svg>
+                            </span>
+                            <span class="label">Приёмки</span>
+                            <span class="hint">Закупки у поставщиков</span>
+                        </div>
+                        <div class="doc-type-btn" data-type="move">
+                            <span class="icon">
+                                <svg viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                            </span>
+                            <span class="label">Перемещения</span>
+                            <span class="hint">Между складами</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- Настройки -->
-            <div class="settings-row">
-                <div class="settings-item">
-                    <label for="yearSelect">📅 Год документов</label>
-                    <select id="yearSelect" class="year-select"></select>
-                </div>
-                <div class="settings-item">
-                    <label for="currencySelect">💱 Валюта</label>
-                    <select id="currencySelect" class="year-select">
-                        <option value="руб" selected>₽ Рубли (руб)</option>
-                        <option value="USD">$ Доллары (USD)</option>
-                        <option value="EUR">€ Евро (EUR)</option>
-                        <option value="CNY">¥ Юани (CNY)</option>
-                        <option value="KZT">₸ Тенге (KZT)</option>
-                        <option value="BYN">Br Бел. рубли (BYN)</option>
-                        <option value="UAH">₴ Гривны (UAH)</option>
-                        <option value="UZS">сум Сумы (UZS)</option>
-                        <option value="GEL">₾ Лари (GEL)</option>
-                        <option value="AMD">֏ Драмы (AMD)</option>
-                        <option value="TRY">₺ Лиры (TRY)</option>
-                        <option value="AED">د.إ Дирхамы (AED)</option>
-                    </select>
-                </div>
-                <div class="settings-item">
-                    <label for="telegramInput">📱 Telegram для уведомлений</label>
-                    <div class="telegram-wrapper">
-                        <input type="text" id="telegramInput" class="telegram-input" placeholder="@username">
-                        <span id="telegramSaved" class="telegram-saved" style="display: none;">💾</span>
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+                        Настройки
                     </div>
-                    <div id="telegramStatus" class="telegram-status"></div>
-                    <a href="https://t.me/package_expenses_bot" target="_blank" class="bot-link">
-                        Написать боту /start для активации →
-                    </a>
+                </div>
+                <div class="card-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Год документов</label>
+                            <select id="yearSelect" class="form-select"></select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Валюта</label>
+                            <select id="currencySelect" class="form-select">
+                                <option value="руб" selected>₽ Рубли</option>
+                                <option value="USD">$ Доллары</option>
+                                <option value="EUR">€ Евро</option>
+                                <option value="CNY">¥ Юани</option>
+                                <option value="KZT">₸ Тенге</option>
+                                <option value="BYN">Br Бел. рубли</option>
+                                <option value="UAH">₴ Гривны</option>
+                                <option value="UZS">сум Сумы</option>
+                                <option value="GEL">₾ Лари</option>
+                                <option value="AMD">֏ Драмы</option>
+                                <option value="TRY">₺ Лиры</option>
+                                <option value="AED">د.إ Дирхамы</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Telegram для уведомлений</label>
+                            <div class="telegram-wrapper">
+                                <input type="text" id="telegramInput" class="form-input" placeholder="@username">
+                                <span id="telegramSaved" class="telegram-saved" style="display: none;">
+                                    <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none;"><path d="M20 6L9 17l-5-5"/></svg>
+                                </span>
+                            </div>
+                            <div id="telegramStatus" class="telegram-status"></div>
+                            <a href="https://t.me/package_expenses_bot" target="_blank" class="bot-link">
+                                Написать боту /start для активации
+                                <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
-            
+
             <!-- Статья расходов -->
-            <div class="input-section">
-                <label class="input-label">📝 Статья расходов (по умолчанию)</label>
-                <div class="category-wrapper">
-                    <div class="category-select-wrapper">
-                        <input type="text" id="categoryInput" class="category-input" 
-                               placeholder="Не выбрана — из Excel или 'Накладные расходы'" autocomplete="off">
-                        <button type="button" id="clearCategoryBtn" class="btn-clear-input" title="Очистить">×</button>
-                        <button type="button" id="dropdownToggleBtn" class="btn-dropdown-toggle" title="Выбрать из списка">▼</button>
-                        <div id="categoryDropdown" class="category-dropdown"></div>
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+                        Статья расходов
                     </div>
-                    <button id="addCategoryBtn" class="btn-add" title="Добавить новую статью">+</button>
                 </div>
-                <div class="input-hint">
-                    Выберите из списка ▼ или введите новую и нажмите +<br>
-                    Если пусто — берётся статья из 3-го столбца Excel или "Накладные расходы"
+                <div class="card-body">
+                    <div class="category-wrapper">
+                        <div class="category-select-wrapper">
+                            <input type="text" id="categoryInput" class="category-input" 
+                                   placeholder="Не выбрана — из Excel или 'Накладные расходы'" autocomplete="off">
+                            <button type="button" id="clearCategoryBtn" class="btn-clear-input" title="Очистить">×</button>
+                            <button type="button" id="dropdownToggleBtn" class="btn-dropdown-toggle" title="Выбрать из списка">▼</button>
+                            <div id="categoryDropdown" class="category-dropdown"></div>
+                        </div>
+                        <button id="addCategoryBtn" class="btn-add" title="Добавить новую статью">+</button>
+                    </div>
+                    <div class="form-hint">
+                        Выберите из списка или введите новую и нажмите +<br>
+                        Если пусто — берётся статья из 3-го столбца Excel или "Накладные расходы"
+                    </div>
                 </div>
             </div>
-            
+
             <!-- Вставка данных -->
-            <div class="input-section">
-                <label class="input-label">📋 Вставьте данные из Excel</label>
-                <div class="format-hint">
-                    <b>Формат:</b> 
-                    <code>Номер</code> <code>Сумма</code> или 
-                    <code>Номер</code> <code>Сумма</code> <code>Статья</code>
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                        Данные из Excel
+                    </div>
                 </div>
-                <textarea id="pasteInput" class="paste-area" placeholder="Примеры:
+                <div class="card-body">
+                    <div class="format-hint">
+                        <strong>Формат:</strong> 
+                        <code>Номер</code> <code>Сумма</code> или 
+                        <code>Номер</code> <code>Сумма</code> <code>Статья</code>
+                    </div>
+                    <textarea id="pasteInput" class="form-textarea" placeholder="Примеры:
 
 2 столбца (статья из поля выше или 'Накладные расходы'):
 00001    1500.50
@@ -562,47 +1037,60 @@
 00001    1500.50    Доставка
 00002    2300       Упаковка
 00003    890.25     Транспортные расходы"></textarea>
+                </div>
             </div>
-            
+
             <!-- Предпросмотр -->
-            <div class="preview-section">
-                <div class="preview-header">
-                    <span class="preview-title">Предпросмотр <span id="currencyBadge" class="currency-badge">₽ руб</span></span>
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">
+                        <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        Предпросмотр
+                        <span id="currencyBadge" class="currency-badge">₽ руб</span>
+                    </div>
                     <span id="previewCount" class="preview-count">0 записей</span>
                 </div>
-                <div id="previewEmpty" class="preview-empty">
-                    <div class="preview-empty-icon">📋</div>
-                    <div>Вставьте данные из Excel</div>
-                </div>
-                <div id="previewTableWrapper" class="preview-table-wrapper" style="display: none;">
-                    <table class="preview-table">
-                        <thead>
-                            <tr>
-                                <th style="width: 40px;">#</th>
-                                <th>Номер документа</th>
-                                <th style="width: 120px;">Сумма</th>
-                                <th>Статья расходов</th>
-                            </tr>
-                        </thead>
-                        <tbody id="previewBody"></tbody>
-                    </table>
+                <div class="card-body">
+                    <div id="previewEmpty" class="empty-state">
+                        <div class="empty-state-icon">
+                            <svg viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                        </div>
+                        <div>Вставьте данные из Excel</div>
+                    </div>
+                    <div id="previewTableWrapper" class="table-wrap" style="display: none;">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;">#</th>
+                                    <th>Номер документа</th>
+                                    <th style="width: 120px;">Сумма</th>
+                                    <th>Статья расходов</th>
+                                </tr>
+                            </thead>
+                            <tbody id="previewBody"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-            
+
             <!-- Действия -->
             <div class="actions">
                 <div id="loader" class="loader">
                     <div class="spinner"></div>
                     <span id="loaderText">Обработка...</span>
                 </div>
-                <button id="clearBtn" class="btn btn-secondary">Очистить</button>
+                <button id="clearBtn" class="btn btn-secondary">
+                    <svg viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    Очистить
+                </button>
                 <button id="processBtn" class="btn btn-primary" disabled>
-                    <span id="processBtnText">✓ Разнести расходы</span>
+                    <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+                    <span id="processBtnText">Разнести расходы</span>
                 </button>
             </div>
         </div>
     </div>
-    
+
     <script>
         // ============== Переменные ==============
         let parsedData = [];
@@ -612,42 +1100,29 @@
         let savedTelegramUsername = '';
         let telegramCheckTimeout = null;
         let telegramSaveTimeout = null;
-        
-        // Параметры из URL
+
         const urlParams = new URLSearchParams(window.location.search);
         const contextKey = urlParams.get('contextKey') || '';
         const appId = urlParams.get('appId') || '';
         const appUid = urlParams.get('appUid') || '';
         const docTypeFromUrl = urlParams.get('docType') || '';
-        
-        // Текущий выбранный тип документа
+
         let selectedDocType = docTypeFromUrl || 'demand';
-        
-        // Конфигурация типов документов
+
         const docTypeConfig = {
-            'demand': { name: 'Отгрузки', icon: '📦', color: 'demand', btnText: '✓ Разнести в отгрузки' },
-            'supply': { name: 'Приёмки', icon: '📥', color: 'supply', btnText: '✓ Разнести в приёмки' },
-            'move': { name: 'Перемещения', icon: '🔄', color: 'move', btnText: '✓ Разнести в перемещения' }
+            'demand': { name: 'Отгрузки', color: 'demand', btnText: 'Разнести в отгрузки' },
+            'supply': { name: 'Приёмки', color: 'supply', btnText: 'Разнести в приёмки' },
+            'move': { name: 'Перемещения', color: 'move', btnText: 'Разнести в перемещения' }
         };
-        
-        // Символы валют
+
         const currencySymbols = {
-            'руб': '₽',
-            'USD': '$',
-            'EUR': '€',
-            'CNY': '¥',
-            'KZT': '₸',
-            'BYN': 'Br',
-            'UAH': '₴',
-            'UZS': 'сум',
-            'GEL': '₾',
-            'AMD': '֏',
-            'TRY': '₺',
-            'AED': 'د.إ'
+            'руб': '₽', 'USD': '$', 'EUR': '€', 'CNY': '¥', 'KZT': '₸',
+            'BYN': 'Br', 'UAH': '₴', 'UZS': 'сум', 'GEL': '₾',
+            'AMD': '֏', 'TRY': '₺', 'AED': 'د.إ'
         };
-        
+
         const API_BASE = '/expensesms/api';
-        
+
         // ============== DOM элементы ==============
         const pageTitle = document.getElementById('pageTitle');
         const accountBadge = document.getElementById('accountBadge');
@@ -675,10 +1150,10 @@
         const loader = document.getElementById('loader');
         const loaderText = document.getElementById('loaderText');
         const statusMessage = document.getElementById('statusMessage');
-        
+
         // ============== Инициализация ==============
         init();
-        
+
         async function init() {
             setupDocTypeSelector();
             setupYearSelect();
@@ -687,20 +1162,18 @@
             updateCurrencyBadge();
             await loadCategories();
         }
-        
+
         function setupDocTypeSelector() {
-            // Показываем выбор типа только если не передан docType через URL
             if (!docTypeFromUrl) {
                 docTypeSection.style.display = 'block';
             }
-            
-            // Обработчики для кнопок выбора типа
+
             document.querySelectorAll('.doc-type-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     document.querySelectorAll('.doc-type-btn').forEach(b => {
                         b.classList.remove('active', 'demand', 'supply', 'move');
                     });
-                    
+
                     const type = btn.dataset.type;
                     btn.classList.add('active', type);
                     selectedDocType = type;
@@ -708,30 +1181,30 @@
                 });
             });
         }
-        
+
         function updateUIForDocType() {
             const config = docTypeConfig[selectedDocType] || docTypeConfig['demand'];
-            pageTitle.textContent = `${config.icon} Накладные расходы (${config.name})`;
+            pageTitle.textContent = `Накладные расходы — ${config.name}`;
             processBtnText.textContent = config.btnText;
             processBtn.classList.remove('demand', 'supply', 'move');
             processBtn.classList.add(config.color);
         }
-        
+
         function updateCurrencyBadge() {
             const currency = currencySelect.value;
             const symbol = currencySymbols[currency] || currency;
             currencyBadge.textContent = `${symbol} ${currency}`;
         }
-        
+
         function getCurrentCurrencySymbol() {
             return currencySymbols[currencySelect.value] || currencySelect.value;
         }
-        
+
         function setupYearSelect() {
             const currentYear = new Date().getFullYear();
             const startYear = 2020;
             const endYear = currentYear + 5;
-            
+
             for (let y = endYear; y >= startYear; y--) {
                 const opt = document.createElement('option');
                 opt.value = y;
@@ -740,7 +1213,7 @@
                 yearSelect.appendChild(opt);
             }
         }
-        
+
         function apiUrl(endpoint) {
             let url = `${API_BASE}${endpoint}`;
             const sep = url.includes('?') ? '&' : '?';
@@ -749,70 +1222,66 @@
             if (resolvedAccountId) url += `&accountId=${encodeURIComponent(resolvedAccountId)}`;
             return url;
         }
-        
+
         async function loadCategories() {
             try {
-                setAccountStatus('🔄 Загрузка...', 'loading');
+                setAccountStatus('Загрузка...', 'loading');
                 const response = await fetch(apiUrl('/expense-categories'));
                 const data = await response.json();
-                
+
                 if (data.error) {
-                    setAccountStatus('❌ ' + data.error, 'error');
+                    setAccountStatus(data.error, 'error');
                     mainContent.classList.add('app-disabled');
                     return;
                 }
-                
+
                 categories = data.categories || [];
                 if (data.accountId) resolvedAccountId = data.accountId;
                 if (data.accountName) {
                     resolvedAccountName = data.accountName;
-                    setAccountStatus('✅ ' + data.accountName, 'success');
+                    setAccountStatus(data.accountName, 'success');
                 } else {
-                    setAccountStatus('✅ Подключено', 'success');
+                    setAccountStatus('Подключено', 'success');
                 }
-                
-                // Загружаем сохранённый Telegram
+
                 if (data.savedTelegram) {
                     savedTelegramUsername = data.savedTelegram;
                     telegramInput.value = data.savedTelegram;
                     telegramSaved.style.display = 'inline';
                     checkTelegramUser(data.savedTelegram);
                 }
-                
+
                 renderCategoryDropdown();
-                
-                // По умолчанию поле пустое
                 categoryInput.value = '';
                 updateClearButton();
-                
                 mainContent.classList.remove('app-disabled');
             } catch (error) {
                 console.error('Load error:', error);
-                setAccountStatus('❌ Ошибка подключения', 'error');
+                setAccountStatus('Ошибка подключения', 'error');
             }
         }
-        
+
         function setAccountStatus(text, type) {
-            accountBadge.textContent = text;
+            const icons = {
+                success: '<svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>',
+                error: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>',
+                loading: '<svg viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>'
+            };
+            accountBadge.innerHTML = `${icons[type] || ''} ${text}`;
             accountBadge.className = 'account-badge ' + type;
         }
-        
+
         function setupEventListeners() {
-            // Вставка данных
             pasteInput.addEventListener('input', handleInput);
             pasteInput.addEventListener('paste', () => setTimeout(handleInput, 50));
-            
-            // Поле категории
-            categoryInput.addEventListener('input', () => { 
-                filterCategories(); 
+
+            categoryInput.addEventListener('input', () => {
+                filterCategories();
                 updateClearButton();
                 renderPreview();
             });
-            categoryInput.addEventListener('focus', () => { 
-                showDropdown();
-            });
-            
-            // Кнопка очистки категории
+            categoryInput.addEventListener('focus', () => showDropdown());
+
             clearCategoryBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 categoryInput.value = '';
@@ -821,8 +1290,7 @@
                 renderPreview();
                 categoryInput.focus();
             });
-            
-            // Кнопка выпадающего списка
+
             dropdownToggleBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (categoryDropdown.classList.contains('show')) {
@@ -831,40 +1299,34 @@
                     showDropdown();
                 }
             });
-            
-            // Закрытие dropdown при клике вне
+
             document.addEventListener('click', (e) => {
                 if (!e.target.closest('.category-select-wrapper')) {
                     hideDropdown();
                 }
             });
-            
-            // Добавление категории
+
             addCategoryBtn.addEventListener('click', addNewCategory);
-            
-            // Кнопки действий
             clearBtn.addEventListener('click', clearData);
             processBtn.addEventListener('click', processExpenses);
-            
-            // Выбор валюты
+
             currencySelect.addEventListener('change', () => {
                 updateCurrencyBadge();
                 renderPreview();
             });
-            
-            // Telegram с debounce
+
             telegramInput.addEventListener('input', (e) => {
                 const value = e.target.value.trim();
-                
+
                 clearTimeout(telegramCheckTimeout);
                 if (value) {
-                    telegramStatus.textContent = '⏳ Проверка...';
+                    telegramStatus.textContent = 'Проверка...';
                     telegramStatus.className = 'telegram-status checking';
                     telegramCheckTimeout = setTimeout(() => checkTelegramUser(value), 500);
                 } else {
                     telegramStatus.textContent = '';
                 }
-                
+
                 clearTimeout(telegramSaveTimeout);
                 telegramSaved.style.display = 'none';
                 if (value !== savedTelegramUsername) {
@@ -872,18 +1334,18 @@
                 }
             });
         }
-        
+
         function showDropdown() {
             filterCategories();
             categoryDropdown.classList.add('show');
             dropdownToggleBtn.classList.add('open');
         }
-        
+
         function hideDropdown() {
             categoryDropdown.classList.remove('show');
             dropdownToggleBtn.classList.remove('open');
         }
-        
+
         function updateClearButton() {
             if (categoryInput.value.trim()) {
                 clearCategoryBtn.classList.add('show');
@@ -891,24 +1353,24 @@
                 clearCategoryBtn.classList.remove('show');
             }
         }
-        
+
         async function checkTelegramUser(username) {
             try {
                 const response = await fetch(apiUrl(`/check-telegram?username=${encodeURIComponent(username)}`));
                 const data = await response.json();
-                
+
                 if (data.registered) {
-                    telegramStatus.textContent = '✅ Зарегистрирован в боте';
+                    telegramStatus.textContent = 'Зарегистрирован в боте';
                     telegramStatus.className = 'telegram-status success';
                 } else {
-                    telegramStatus.innerHTML = '⚠️ Напишите <b>/start</b> боту';
+                    telegramStatus.innerHTML = 'Напишите <b>/start</b> боту';
                     telegramStatus.className = 'telegram-status error';
                 }
             } catch (e) {
                 telegramStatus.textContent = '';
             }
         }
-        
+
         async function saveTelegramUsername(username) {
             try {
                 await fetch(apiUrl('/save-telegram'), {
@@ -922,23 +1384,23 @@
                 console.error('Save telegram error:', e);
             }
         }
-        
+
         function renderCategoryDropdown(filter = '') {
-            const filtered = categories.filter(c => 
+            const filtered = categories.filter(c =>
                 c.name.toLowerCase().includes(filter.toLowerCase())
             );
-            
+
             if (filtered.length === 0) {
                 categoryDropdown.innerHTML = `<div class="category-empty">
                     ${filter ? 'Не найдено. Нажмите + чтобы добавить' : 'Справочник пуст. Добавьте статью через +'}
                 </div>`;
                 return;
             }
-            
-            categoryDropdown.innerHTML = filtered.map(c => 
+
+            categoryDropdown.innerHTML = filtered.map(c =>
                 `<div class="category-option" data-name="${escapeHtml(c.name)}">${escapeHtml(c.name)}</div>`
             ).join('');
-            
+
             categoryDropdown.querySelectorAll('.category-option').forEach(opt => {
                 opt.addEventListener('click', () => {
                     categoryInput.value = opt.dataset.name;
@@ -948,25 +1410,25 @@
                 });
             });
         }
-        
-        function filterCategories() { 
-            renderCategoryDropdown(categoryInput.value); 
+
+        function filterCategories() {
+            renderCategoryDropdown(categoryInput.value);
         }
-        
+
         async function addNewCategory() {
             const name = categoryInput.value.trim();
-            if (!name) { 
-                showStatus('Введите название статьи', 'error'); 
-                return; 
+            if (!name) {
+                showStatus('Введите название статьи', 'danger');
+                return;
             }
-            if (categories.some(c => c.name.toLowerCase() === name.toLowerCase())) { 
-                showStatus('Статья уже существует', 'info'); 
-                return; 
+            if (categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+                showStatus('Статья уже существует', 'info');
+                return;
             }
-            
+
             addCategoryBtn.disabled = true;
             addCategoryBtn.textContent = '...';
-            
+
             try {
                 const response = await fetch(apiUrl('/expense-categories'), {
                     method: 'POST',
@@ -978,50 +1440,50 @@
                     categories.push(data.category);
                     renderCategoryDropdown();
                     updateClearButton();
-                    showStatus(`✅ Статья "${name}" добавлена`, 'success');
+                    showStatus(`Статья "${name}" добавлена`, 'success');
                 } else {
-                    showStatus(`❌ ${data.error}`, 'error');
+                    showStatus(data.error, 'danger');
                 }
             } catch (error) {
-                showStatus(`❌ ${error.message}`, 'error');
+                showStatus(error.message, 'danger');
             } finally {
                 addCategoryBtn.disabled = false;
                 addCategoryBtn.textContent = '+';
             }
         }
-        
+
         function handleInput() {
             const text = pasteInput.value.trim();
-            if (!text) { 
-                showEmptyState(); 
-                return; 
+            if (!text) {
+                showEmptyState();
+                return;
             }
             parsedData = parseExcelData(text);
-            if (parsedData.length === 0) { 
-                showEmptyState(); 
-                return; 
+            if (parsedData.length === 0) {
+                showEmptyState();
+                return;
             }
             renderPreview();
         }
-        
+
         function parseExcelData(text) {
             const lines = text.split('\n');
             const data = [];
-            
+
             for (const line of lines) {
                 const trimmed = line.trim();
                 if (!trimmed) continue;
-                
+
                 let parts = trimmed.split('\t');
                 if (parts.length < 2) parts = trimmed.split(';');
                 if (parts.length < 2) parts = trimmed.split(/\s{2,}/);
-                
+
                 if (parts.length >= 2) {
                     const docNumber = parts[0].trim();
                     const expenseStr = parts[1].trim().replace(/\s/g, '').replace(',', '.');
                     const expense = parseFloat(expenseStr);
                     const categoryFromExcel = parts[2] ? parts[2].trim() : null;
-                    
+
                     data.push({
                         demandNumber: docNumber,
                         expense: isNaN(expense) ? 0 : expense,
@@ -1032,25 +1494,24 @@
             }
             return data;
         }
-        
-        function getDefaultCategory() { 
-            return categoryInput.value.trim(); // Может быть пустым
+
+        function getDefaultCategory() {
+            return categoryInput.value.trim();
         }
-        
+
         function renderPreview() {
-            if (parsedData.length === 0) { 
-                showEmptyState(); 
-                return; 
+            if (parsedData.length === 0) {
+                showEmptyState();
+                return;
             }
-            
+
             previewEmpty.style.display = 'none';
             previewTableWrapper.style.display = 'block';
-            
+
             const validCount = parsedData.filter(d => d.isValid).length;
             const defaultCategory = getDefaultCategory();
             const currencySymbol = getCurrentCurrencySymbol();
-            
-            // Считаем новые статьи
+
             const existingNames = new Set(categories.map(c => c.name.toLowerCase()));
             const newCategories = new Set();
             parsedData.forEach(d => {
@@ -1058,39 +1519,35 @@
                     newCategories.add(d.category);
                 }
             });
-            
+
             let countText = `${parsedData.length} записей (${validCount} корректных)`;
             if (newCategories.size > 0) {
                 countText += ` • ${newCategories.size} новых статей`;
             }
             previewCount.textContent = countText;
-            
+
             previewBody.innerHTML = parsedData.map((item, i) => {
-                // Логика определения статьи
                 let displayCategory;
                 let badgeHtml = '';
-                
+
                 if (item.category) {
-                    // Есть статья из Excel
                     displayCategory = item.category;
                     const isNew = !existingNames.has(item.category.toLowerCase());
-                    badgeHtml = isNew 
-                        ? '<span class="new-category-badge">НОВАЯ</span>' 
-                        : '<span class="from-excel-badge">из Excel</span>';
+                    badgeHtml = isNew
+                        ? '<span class="badge badge-new">Новая</span>'
+                        : '<span class="badge badge-excel">Excel</span>';
                 } else if (defaultCategory) {
-                    // Используем статью по умолчанию
                     displayCategory = defaultCategory;
                 } else {
-                    // Используем "Накладные расходы"
                     displayCategory = 'Накладные расходы';
-                    badgeHtml = '<span class="from-excel-badge">авто</span>';
+                    badgeHtml = '<span class="badge badge-auto">Авто</span>';
                 }
-                
+
                 return `
                     <tr class="${item.isValid ? '' : 'row-error'}">
                         <td>${i + 1}</td>
                         <td class="number-col">
-                            ${escapeHtml(item.demandNumber)} 
+                            ${escapeHtml(item.demandNumber)}
                             <span class="${item.isValid ? 'icon-valid' : 'icon-invalid'}">
                                 ${item.isValid ? '✓' : '✗'}
                             </span>
@@ -1104,10 +1561,10 @@
                     </tr>
                 `;
             }).join('');
-            
+
             processBtn.disabled = validCount === 0;
         }
-        
+
         function showEmptyState() {
             parsedData = [];
             previewEmpty.style.display = 'block';
@@ -1116,38 +1573,38 @@
             previewBody.innerHTML = '';
             processBtn.disabled = true;
         }
-        
-        function clearData() { 
-            pasteInput.value = ''; 
-            showEmptyState(); 
-            hideStatus(); 
+
+        function clearData() {
+            pasteInput.value = '';
+            showEmptyState();
+            hideStatus();
         }
-        
+
         async function processExpenses() {
             const validData = parsedData.filter(d => d.isValid);
-            if (validData.length === 0) { 
-                showStatus('Нет корректных данных для обработки', 'error'); 
-                return; 
+            if (validData.length === 0) {
+                showStatus('Нет корректных данных для обработки', 'danger');
+                return;
             }
-            
+
             const year = parseInt(yearSelect.value);
             const telegramUsername = telegramInput.value.trim();
             const defaultCategory = getDefaultCategory() || 'Накладные расходы';
             const currency = currencySelect.value;
             const config = docTypeConfig[selectedDocType];
-            
+
             loader.classList.add('show');
             loaderText.textContent = `Разнесение в ${config.name.toLowerCase()}...`;
             processBtn.disabled = true;
             clearBtn.disabled = true;
-            
+
             try {
                 const response = await fetch(apiUrl('/process-expenses'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        expenses: validData.map(d => ({ 
-                            demandNumber: d.demandNumber, 
+                        expenses: validData.map(d => ({
+                            demandNumber: d.demandNumber,
                             expense: d.expense,
                             category: d.category || null
                         })),
@@ -1158,11 +1615,11 @@
                         currency: currency
                     })
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (result.success) {
-                    let msg = `✅ ${config.name}: ${result.processed} обработано`;
+                    let msg = `${config.name}: ${result.processed} обработано`;
                     if (result.errors > 0) msg += `, ${result.errors} ошибок`;
                     if (result.newCategories && result.newCategories.length > 0) {
                         msg += `, ${result.newCategories.length} статей создано`;
@@ -1174,26 +1631,26 @@
                         renderCategoryDropdown();
                     }
                     if (telegramUsername) msg += ' • Отчёт в Telegram';
-                    
-                    showStatus(msg, result.errors > 0 ? 'info' : 'success');
-                    
+
+                    showStatus(msg, result.errors > 0 ? 'warning' : 'success');
+
                     if (result.errors === 0) {
                         setTimeout(clearData, 3000);
                     } else {
                         highlightErrors(result.errorDetails);
                     }
                 } else {
-                    showStatus(`❌ ${result.error}`, 'error');
+                    showStatus(result.error, 'danger');
                 }
             } catch (error) {
-                showStatus(`❌ ${error.message}`, 'error');
+                showStatus(error.message, 'danger');
             } finally {
                 loader.classList.remove('show');
                 processBtn.disabled = false;
                 clearBtn.disabled = false;
             }
         }
-        
+
         function highlightErrors(errorDetails) {
             if (!errorDetails || errorDetails.length === 0) return;
             const errorNumbers = new Set(errorDetails.map(e => e.docNumber));
@@ -1203,17 +1660,17 @@
                 }
             });
         }
-        
+
         function showStatus(message, type) {
             statusMessage.textContent = message;
-            statusMessage.className = `status-message show status-${type}`;
+            statusMessage.className = `alert alert-${type} show`;
             setTimeout(hideStatus, 8000);
         }
-        
-        function hideStatus() { 
-            statusMessage.className = 'status-message'; 
+
+        function hideStatus() {
+            statusMessage.className = 'alert';
         }
-        
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
