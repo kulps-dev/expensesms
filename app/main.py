@@ -974,42 +974,42 @@ async def process_expenses(request: Request):
     telegram_username = body.get("telegramUsername", "")
     doc_type = body.get("docType", "demand")
     currency = body.get("currency", "руб")  # Получаем валюту из запроса
-
+    
     acc = await resolve_account(request)
     if not acc or not acc.get("access_token"):
         return JSONResponse({"success": False, "error": "Аккаунт не определён"}, status_code=400)
-
+    
     token = acc["access_token"]
     account_id = acc["account_id"]
     account_name = acc.get("account_name", "")
-
+    
     doc_type_names = {'demand': 'Отгрузки', 'supply': 'Приёмки', 'move': 'Перемещения'}
     doc_type_name = doc_type_names.get(doc_type, 'Документы')
-
+    
     if telegram_username:
         save_user_telegram(account_id, telegram_username)
-
+    
     logger.info(f"📊 Обработка {len(expenses)} ({doc_type_name}) для {account_name}, год: {year}, валюта: {currency}")
-
+    
     # Справочник для создания статей
     dict_id = await ensure_dictionary(token, account_id)
-
+    
     # Собираем статьи из данных
     categories_to_create = set()
     for item in expenses:
         item_category = item.get("category")
         if item_category:
             categories_to_create.add(item_category.strip())
-
+    
     # Существующие статьи
     existing_categories = await get_expense_categories(token, dict_id) if dict_id else []
     existing_names = {c["name"].lower() for c in existing_categories}
-
+    
     # Лог с валютой
     proc_log = ProcessingLog(account_id, account_name, year, category, doc_type, currency)
     proc_log.log(f"Начало обработки {len(expenses)} записей ({doc_type_name})")
     proc_log.log(f"Валюта: {currency} ({get_currency_symbol(currency)})")
-
+    
     # Создаём новые статьи
     new_categories_created = []
     for cat_name in categories_to_create:
@@ -1022,10 +1022,10 @@ async def process_expenses(request: Request):
                 proc_log.log(f"✅ Статья '{cat_name}' создана")
             else:
                 proc_log.log(f"⚠️ Не удалось создать статью '{cat_name}'")
-
+    
     if new_categories_created:
         proc_log.log(f"📚 Создано новых статей: {len(new_categories_created)}")
-
+    
     # Уведомление о начале
     if telegram_username:
         currency_symbol = get_currency_symbol(currency)
@@ -1040,44 +1040,36 @@ async def process_expenses(request: Request):
             start_msg += f"📚 Новых статей: {len(new_categories_created)}\n"
         start_msg += f"\n⏳ Пожалуйста, подождите..."
         await notify_user_by_username(telegram_username, start_msg)
-
+    
     # Обработка
     for idx, item in enumerate(expenses, 1):
-        num = (item.get("demandNumber", "") or "").strip()
-
-        # значение может быть строкой, пустым и т.п.
-        try:
-            val = float(item.get("expense", 0) or 0)
-        except (TypeError, ValueError):
-            val = 0
-
+        num = item.get("demandNumber", "").strip()
+        val = float(item.get("expense", 0))
         item_category = item.get("category") or category
-
-        # ВАЖНО: теперь разрешаем отрицательные, пропускаем только 0
-        if not num or val == 0:
+        
+        if not num or val <= 0:
             continue
-
-        sign = "+" if val > 0 else ""
-        proc_log.log("")
-        proc_log.log(f"[{idx}/{len(expenses)}] {num} — {sign}{val:,.2f} {currency} ({item_category})")
-
+        
+        proc_log.log(f"")
+        proc_log.log(f"[{idx}/{len(expenses)}] {num} — {val:,.2f} {currency} ({item_category})")
+        
         search_result = await search_document_exact(token, doc_type, num, year, proc_log)
-
+        
         if not search_result["found"]:
             proc_log.log_error(num, val, search_result.get("error", "Не найден"))
             continue
-
+        
         document = search_result["document"]
         r = await update_document_overhead(token, doc_type, document["id"], val, item_category, proc_log, currency)
-
+        
         if r["success"]:
             proc_log.log_success(num, val, r.get("total", 0))
         else:
             proc_log.log_error(num, val, r.get("error", "Ошибка обновления"))
-
+    
     # Финализация
     full_log = proc_log.finalize()
-
+    
     # Telegram отчёт
     if telegram_username:
         telegram_report = proc_log.get_telegram_report()
@@ -1087,10 +1079,10 @@ async def process_expenses(request: Request):
                 telegram_report += f"  • {nc}\n"
             if len(new_categories_created) > 10:
                 telegram_report += f"  ... и ещё {len(new_categories_created) - 10}"
-
+        
         await notify_user_by_username(telegram_username, telegram_report)
         await send_log_file_to_user(telegram_username, full_log, proc_log.log_filename)
-
+    
     return JSONResponse({
         "success": True,
         "processed": len(proc_log.results),
