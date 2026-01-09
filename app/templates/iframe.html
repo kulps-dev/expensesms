@@ -940,51 +940,66 @@
 
             <!-- Настройки -->
             <div class="card">
-                <div class="card-header">
-                    <div class="card-title">
-                        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-                        Настройки
+            <div class="card-header">
+                <div class="card-title">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+                Настройки
+                </div>
+            </div>
+
+            <div class="card-body">
+                <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Год документов</label>
+                    <select id="yearSelect" class="form-select"></select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Валюта</label>
+                    <select id="currencySelect" class="form-select">
+                    <option value="руб" selected>₽ Рубли</option>
+                    <option value="USD">$ Доллары</option>
+                    <option value="EUR">€ Евро</option>
+                    <option value="CNY">¥ Юани</option>
+                    <option value="KZT">₸ Тенге</option>
+                    <option value="BYN">Br Бел. рубли</option>
+                    <option value="UAH">₴ Гривны</option>
+                    <option value="UZS">сум Сумы</option>
+                    <option value="GEL">₾ Лари</option>
+                    <option value="AMD">֏ Драмы</option>
+                    <option value="TRY">₺ Лиры</option>
+                    <option value="AED">د.إ Дирхамы</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Распределение накладных</label>
+                    <select id="distributionSelect" class="form-select">
+                    <option value="price" selected>По цене</option>
+                    <option value="weight">По весу</option>
+                    <option value="volume">По объёму</option>
+                    </select>
+                    <div class="form-hint">
+                    Как МойСклад распределит накладные по позициям документа
                     </div>
                 </div>
-                <div class="card-body">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label class="form-label">Год документов</label>
-                            <select id="yearSelect" class="form-select"></select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Валюта</label>
-                            <select id="currencySelect" class="form-select">
-                                <option value="руб" selected>₽ Рубли</option>
-                                <option value="USD">$ Доллары</option>
-                                <option value="EUR">€ Евро</option>
-                                <option value="CNY">¥ Юани</option>
-                                <option value="KZT">₸ Тенге</option>
-                                <option value="BYN">Br Бел. рубли</option>
-                                <option value="UAH">₴ Гривны</option>
-                                <option value="UZS">сум Сумы</option>
-                                <option value="GEL">₾ Лари</option>
-                                <option value="AMD">֏ Драмы</option>
-                                <option value="TRY">₺ Лиры</option>
-                                <option value="AED">د.إ Дирхамы</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Telegram для уведомлений</label>
-                            <div class="telegram-wrapper">
-                                <input type="text" id="telegramInput" class="form-input" placeholder="@username">
-                                <span id="telegramSaved" class="telegram-saved" style="display: none;">
-                                    <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none;"><path d="M20 6L9 17l-5-5"/></svg>
-                                </span>
-                            </div>
-                            <div id="telegramStatus" class="telegram-status"></div>
-                            <a href="https://t.me/package_expenses_bot" target="_blank" class="bot-link">
-                                Написать боту /start для активации
-                                <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
-                            </a>
-                        </div>
+
+                <div class="form-group">
+                    <label class="form-label">Telegram для уведомлений</label>
+                    <div class="telegram-wrapper">
+                    <input type="text" id="telegramInput" class="form-input" placeholder="@username">
+                    <span id="telegramSaved" class="telegram-saved" style="display: none;">
+                        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;stroke-width:2;fill:none;"><path d="M20 6L9 17l-5-5"/></svg>
+                    </span>
                     </div>
+                    <div id="telegramStatus" class="telegram-status"></div>
+                    <a href="https://t.me/package_expenses_bot" target="_blank" class="bot-link">
+                    Написать боту /start для активации
+                    <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
+                    </a>
                 </div>
+                </div>
+            </div>
             </div>
 
             <!-- Статья расходов -->
@@ -1130,6 +1145,7 @@
         const mainContent = document.getElementById('mainContent');
         const yearSelect = document.getElementById('yearSelect');
         const currencySelect = document.getElementById('currencySelect');
+        const distributionSelect = document.getElementById('distributionSelect');
         const currencyBadge = document.getElementById('currencyBadge');
         const telegramInput = document.getElementById('telegramInput');
         const telegramStatus = document.getElementById('telegramStatus');
@@ -1581,74 +1597,76 @@
         }
 
         async function processExpenses() {
-            const validData = parsedData.filter(d => d.isValid);
-            if (validData.length === 0) {
-                showStatus('Нет корректных данных для обработки', 'danger');
-                return;
-            }
+        const validData = parsedData.filter(d => d.isValid);
+        if (validData.length === 0) {
+            showStatus('Нет корректных данных для обработки', 'danger');
+            return;
+        }
 
-            const year = parseInt(yearSelect.value);
-            const telegramUsername = telegramInput.value.trim();
-            const defaultCategory = getDefaultCategory() || 'Накладные расходы';
-            const currency = currencySelect.value;
-            const config = docTypeConfig[selectedDocType];
+        const year = parseInt(yearSelect.value);
+        const telegramUsername = telegramInput.value.trim();
+        const defaultCategory = getDefaultCategory() || 'Накладные расходы';
+        const currency = currencySelect.value;
+        const distribution = distributionSelect ? distributionSelect.value : 'price'; // <-- НОВОЕ
+        const config = docTypeConfig[selectedDocType];
 
-            loader.classList.add('show');
-            loaderText.textContent = `Разнесение в ${config.name.toLowerCase()}...`;
-            processBtn.disabled = true;
-            clearBtn.disabled = true;
+        loader.classList.add('show');
+        loaderText.textContent = `Разнесение в ${config.name.toLowerCase()}...`;
+        processBtn.disabled = true;
+        clearBtn.disabled = true;
 
-            try {
-                const response = await fetch(apiUrl('/process-expenses'), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        expenses: validData.map(d => ({
-                            demandNumber: d.demandNumber,
-                            expense: d.expense,
-                            category: d.category || null
-                        })),
-                        category: defaultCategory,
-                        year: year,
-                        telegramUsername: telegramUsername,
-                        docType: selectedDocType,
-                        currency: currency
-                    })
-                });
+        try {
+            const response = await fetch(apiUrl('/process-expenses'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                expenses: validData.map(d => ({
+                demandNumber: d.demandNumber,
+                expense: d.expense,
+                category: d.category || null
+                })),
+                category: defaultCategory,
+                year: year,
+                telegramUsername: telegramUsername,
+                docType: selectedDocType,
+                currency: currency,
+                distribution: distribution // <-- НОВОЕ
+            })
+            });
 
-                const result = await response.json();
+            const result = await response.json();
 
-                if (result.success) {
-                    let msg = `${config.name}: ${result.processed} обработано`;
-                    if (result.errors > 0) msg += `, ${result.errors} ошибок`;
-                    if (result.newCategories && result.newCategories.length > 0) {
-                        msg += `, ${result.newCategories.length} статей создано`;
-                        result.newCategories.forEach(name => {
-                            if (!categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
-                                categories.push({ id: 'new', name: name });
-                            }
-                        });
-                        renderCategoryDropdown();
-                    }
-                    if (telegramUsername) msg += ' • Отчёт в Telegram';
-
-                    showStatus(msg, result.errors > 0 ? 'warning' : 'success');
-
-                    if (result.errors === 0) {
-                        setTimeout(clearData, 3000);
-                    } else {
-                        highlightErrors(result.errorDetails);
-                    }
-                } else {
-                    showStatus(result.error, 'danger');
+            if (result.success) {
+            let msg = `${config.name}: ${result.processed} обработано`;
+            if (result.errors > 0) msg += `, ${result.errors} ошибок`;
+            if (result.newCategories && result.newCategories.length > 0) {
+                msg += `, ${result.newCategories.length} статей создано`;
+                result.newCategories.forEach(name => {
+                if (!categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+                    categories.push({ id: 'new', name: name });
                 }
-            } catch (error) {
-                showStatus(error.message, 'danger');
-            } finally {
-                loader.classList.remove('show');
-                processBtn.disabled = false;
-                clearBtn.disabled = false;
+                });
+                renderCategoryDropdown();
             }
+            if (telegramUsername) msg += ' • Отчёт в Telegram';
+
+            showStatus(msg, result.errors > 0 ? 'warning' : 'success');
+
+            if (result.errors === 0) {
+                setTimeout(clearData, 3000);
+            } else {
+                highlightErrors(result.errorDetails);
+            }
+            } else {
+            showStatus(result.error, 'danger');
+            }
+        } catch (error) {
+            showStatus(error.message, 'danger');
+        } finally {
+            loader.classList.remove('show');
+            processBtn.disabled = false;
+            clearBtn.disabled = false;
+        }
         }
 
         function highlightErrors(errorDetails) {
